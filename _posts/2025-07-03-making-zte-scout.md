@@ -5,11 +5,11 @@ date: 2025-07-03
 categories: [projects, tools, hardware, termux, security]
 tags: [ZTE_Scout, Axon7, automation, hardware, scripting, wifi]
 ---
+Introdusing the **ZTE_Scout**, a low-profile recon asset built on a locked-down ZTE Axon 7.
 
 ## Introduction
 
 Mapping Wi-Fi networks on a non-rooted Android device can feel like a dead end—until you discover Termux.
-Introdusing the **ZTE_Scout**, a low-profile recon asset built on a locked-down ZTE Axon 7.
 In this post we’ll unpack two companion scripts, **wifi-map.sh** and **wifi-scout.sh**, that turn a ZTE Axon 7 into a portable scout device and Wi-Fi reconnaissance toolkit. You’ll learn how each script works, how they collect GPS‐tagged scans and network data, and how to deploy them over ADB on a stock (but debloated) device.
 
 ---
