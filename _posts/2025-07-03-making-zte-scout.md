@@ -1,4 +1,3 @@
-```markdown
 ---
 layout: post
 title: "ZTE_Scout: Field Recon from a Locked Core"
