@@ -5,7 +5,3 @@
 layout: home
 ---
 
-{% assign sorted = site.posts | sort: "date" | reverse %}
-{% for post in sorted %}
-- [{{ post.title }}]({{ post.url }}) — {{ post.date | date: "%Y-%m-%d" }}
-{% endfor %}
