@@ -1,4 +1,4 @@
-# **The trials and tribulations of upgrading an old computer with Battlemage**
+## **The trials and tribulations of upgrading an old computer with Battlemage**
 
 Getting Intel’s new Battlemage GPU running smoothly on Linux turned out to be a mix of firmware archaeology, and a few strange quirks.
 
