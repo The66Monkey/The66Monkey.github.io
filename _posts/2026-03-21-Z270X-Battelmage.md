@@ -103,15 +103,23 @@ Now VLC launches normally from the desktop, without crashes.
 
 ---
 
-## **4. Final System State**
+## **4. GravityMark 1440p Results (Linux Vulkan):**
 
-- **GPU:** Intel Battlemage (Xe2)  
-- **Motherboard:** Z270X‑Gaming 5 (forced PCIe Gen3, UEFI only, 4G decoding enabled)  
-- **OS:** Linux Mint 22.3  
-- **Drivers:** Latest Mesa + Intel media runtime  
-- **Video playback:** Fully stable (with VAAPI disabled for VLC only)  
-- **3D/Vulkan:** 100% functional  
-- **Desktop:** Smooth, responsive, no crashes  
+GravityMark 1440p Results (Linux Vulkan):
+
+  Vulkan: 122.5 FPS  
+  - This is the real Battlemage performance.
+  - Shows the Xe2 Vulkan driver is mature and fast on Linux.
+  - No PCIe bottleneck, no thermal throttling, GPU fully utilized.
+
+  Vulkan Ray Tracing: 38.2 FPS  
+  - This is limited mostly by the i7‑6700K + Z270 platform, not the GPU.
+  - RT workloads depend heavily on modern CPU IPC, memory bandwidth, and BVH traversal performance.
+  - Battlemage’s RT path is still early in Mesa, so some overhead is expected.
+
+Summary:  
+Battlemage delivers excellent Vulkan performance on Linux Mint.
+Ray tracing works, but on a 2015 CPU + Z270 board, the GPU can’t stretch its legs fully. On a modern platform, the RT score would climb significantly.
 
 ---
 
