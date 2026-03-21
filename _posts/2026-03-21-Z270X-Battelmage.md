@@ -99,7 +99,6 @@ Now VLC launches normally from the desktop, without crashes.
 
 ### **Result**
 - VLC works perfectly  
-- mpv/Celluloid work with `hwdec=no`  
 - The rest of the GPU stack remains fully accelerated  
 
 ---
