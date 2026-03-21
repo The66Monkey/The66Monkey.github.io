@@ -6,7 +6,8 @@ Getting Intel’s new Battlemage GPU running smoothly on Linux turned out to be 
 
 ## **1. Motherboard Configuration: Making an Older Platform Accept a New GPU**
 
-The system is based my custom built PC from late 2016/early 2017 with these original build specs:
+This machine started life as a 2016 self built gaming build, and like many aging PCs, it’s been through a long series of upgrades, sidegrades, and questionable decisions.
+The original build specs were these:
 
 - Kingston HyperX Fury 120GB SSD (SHFS37A/120G)
 - Seagate Barracuda 3TB (64MB / 7200RPM) (ST3000DM001)
@@ -126,4 +127,5 @@ Ray tracing works, but on a 2015 CPU + Z270 board, the GPU can’t stretch its l
 ## **5. Lessons Learned**
 
 - ca 2017 seems to be the oldest components you can reliably update to a mid range PC these days, and even so the MB does not support some features one might want to utilize.
-- There are still the normal Linux tinkering needed, however compared to the work needed to get Nvidia cards to work I still feel good about the move to Intel GPU.
+- There are still the normal Linux tinkering needed, however compared to the work needed to get Nvidia cards to work I still feel good about the move to Intel GPU. Intel’s open driver stack is still the least painful option on Linux, especially compared to NVIDIA’s DKMS roulette.
+- The VAAPI crash issue might disappear once Intel stabilizes the media stack for Xe2, but we never know how commited they are to supporting the card, especially for the Linux community. And fixing it on a fundamental level is beoynd me.... for now!
