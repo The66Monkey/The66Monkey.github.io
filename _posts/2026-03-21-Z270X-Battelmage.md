@@ -125,5 +125,5 @@ Ray tracing works, but on a 2015 CPU + Z270 board, the GPU can’t stretch its l
 
 ## **5. Lessons Learned**
 
-- ca 2017 seems to be the oldest components you can reliably update to a mid range PC these days, and even so the MB does not support some features one might want to utilize on the MB.
+- ca 2017 seems to be the oldest components you can reliably update to a mid range PC these days, and even so the MB does not support some features one might want to utilize.
 - There are still the normal Linux tinkering needed, however compared to the work needed to get Nvidia cards to work I still feel good about the move to Intel GPU.
