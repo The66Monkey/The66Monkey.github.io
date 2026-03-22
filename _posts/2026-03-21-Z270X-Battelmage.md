@@ -17,7 +17,7 @@ The original build specs were these:
 - ASUS GeForce GTX 970 4GB TURBO OC (TURBO-GTX970-OC-4GD5)
 - Intel Core i7-6700K - 8 thread / 4,0GHz (4,2 Ghz Turbo) / 8MB / Socket 1151 (with a old noctua cooler, from 2012 or so)
 
-During it's life it has gone through a few updates and sidegrades, hosting a number of different HDD's, a sidegrade to a 1060 gtx 3gb GPU, and a Kingston NV2 M.2 1TB ssd.
+During it's life it has hosted a number of different HDD's, a sidegrade to a 1060 gtx 3gb GPU, and a Kingston NV2 M.2 1TB ssd.
 I also upgraded it with a ASUS PCE-AX3000 wifi card, getting that fucker to work is listed in another post.
 
 ### **BIOS and MB**
@@ -25,10 +25,10 @@ I also upgraded it with a ASUS PCE-AX3000 wifi card, getting that fucker to work
 The latest BIOS realeased for the system Mar 9, 2018, version F10b and I had updated to that by the end of 2018. But i haven't messed with it much when it comes to settings since then
 - **Set PCIe slot to Gen3 manually**  
   The board can’t negotiate Gen4/Gen5 properly with Battlemage, so forcing Gen3 avoids link‑training failures.
-  The setting was under M.I.S.C or something like that because i think this was a update pushed in one of the later bios versions and not originally there.
+  The setting was under M.I.S.C or something like that because i think this was an update pushed in one of the later bios versions and not originally there.
 - **Disable CSM (Compatibility Support Module)**  
   Ensures the GPU boots in pure UEFI mode, which Battlemage expects.
-  This bastard fucked me up because I had installed my old Debian OS in legacy and because of this i had to reinstall the os.
+  This bastard fucked me up because I had installed my old Debian OS in legacy and because of this i had to reinstall the OS.
   Luckily with Ventoy and a glut of choices i decided to go with Linux Mint now, so far so good.
 
 ---
@@ -38,11 +38,11 @@ The latest BIOS realeased for the system Mar 9, 2018, version F10b and I had upd
 On Linux Mint (Ubuntu 24.04 base), the Mesa stack already supports Battlemage well. 3D acceleration, Vulkan, desktop compositing — all of that worked immediately.
 
 ### **What worked out of the box**
-- Mesa recognized the GPU  
-- Vulkan worked  
-- Desktop animations were smooth  
-- Games launched normally  
-- Browsers behaved fine  
+- Mesa recognized the GPU
+- Vulkan worked
+- Desktop animations were smooth
+- Games launched normally (Running Heroic Game Launcher)
+- Browsers behaved fine
 
 ### **What *didn’t* work**
 VLC and Celluloid (mpv) **crashed instantly** on video playback.
@@ -108,7 +108,6 @@ Now VLC launches normally from the desktop, without crashes.
 GravityMark 1440p Results (Linux Vulkan):
 
   Vulkan: 122.5 FPS  
-  - This is the real Battlemage performance.
   - Shows the Xe2 Vulkan driver is mature and fast on Linux.
   - No PCIe bottleneck, no thermal throttling, GPU fully utilized.
 
