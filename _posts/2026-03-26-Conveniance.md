@@ -1,4 +1,4 @@
-#Moving from Debian to Linux Mint
+# Moving from Debian to Linux Mint
 
 Switching from Debian to Linux Mint was not a matter of abandoning stability or minimalism. It was a shift in priorities. Debian remains one of the cleanest, most disciplined Linux distributions available, and is for me very much what Linux is "supposed to be". Its design philosophy is conservative by intent: minimal assumptions, and minimal surprises.
 
