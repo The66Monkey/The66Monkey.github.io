@@ -9,6 +9,7 @@ Getting Intel’s new Battlemage GPU running smoothly on Linux turned out to be 
 This machine started life as a 2016 self built gaming build, and like many aging PCs, it’s been through a long series of upgrades, sidegrades, and questionable decisions.
 The original build specs were these:
 
+- Gigabyte Z270X‑Gaming 5 (LGA1151 / Z270 / GA‑Z270X‑G5)
 - Kingston HyperX Fury 120GB SSD (SHFS37A/120G)
 - Seagate Barracuda 3TB (64MB / 7200RPM) (ST3000DM001)
 - Corsair Obsidian 750D Tower
