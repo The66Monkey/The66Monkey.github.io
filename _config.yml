@@ -18,9 +18,9 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: Decent Into Debian
+title: Decent Into Debian 🐧
 description: >- # this means to ignore newlines until "baseurl:"
-  A log and journal of my decent into Debian
+  A wandering story of kernels, cables, distros, and the strange joy of making the universe compile.
 baseurl: "" # leave empty if the site is at https://The66Monkey.github.io
 url: "https://The66Monkey.github.io"
 
