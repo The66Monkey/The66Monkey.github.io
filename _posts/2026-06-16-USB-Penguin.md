@@ -23,7 +23,9 @@ The rest was small but important adjustments: the system was already configured 
 
 The result is a full Linux system running from a cheap USB stick that’s actually usable. It boots, it remembers everything, and once it’s up it behaves like a normal machine instead of fighting the storage.
 
-After trying a few options, I ended up using MX Linux. Mint works well, but it felt heavier than needed for this setup. MX is a better fit for slow storage — it still gives you a full desktop, but with less overhead and fewer background tasks. It boots quicker, writes less, and stays closer to what the hardware can handle. At the same time it’s still Debian-based, so everything is familiar.
+# "Mobile" distro
+
+After trying a few options, I ended up using MX Linux. Mint is my go to for easy, all around installs, but it felt heavier than needed for this setup. MX is a better fit for slow storage — it still gives you a full desktop, but with less overhead and fewer background tasks. It boots quicker, writes less, and stays closer to what the hardware can handle. At the same time it’s still Debian-based, so everything is familiar.
 This turned out to be a surprisingly comfortable system given the constraints. Running a full install from a USB drive is niche, but it’s also something Linux handles extremely well. You can control memory usage, disk behavior, and make the system adapt to hardware in a way that simply isn’t possible on Windows or macOS.
 
 There probably should be a proper “USB install” profile at some point. Not because this is difficult, but because the capabilities are already there — they’re just not presented as a standard option.
