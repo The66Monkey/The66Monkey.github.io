@@ -1,4 +1,4 @@
-##Teh Internet
+# Teh Internet
 
 RustDesk tightened its public infrastructure recently. After botnet abuse and automated scanning, the public relay now requires login, and that finally pushed me to set up my own server. RustDesk’s backend is small: HBBS for ID resolution and HBBR for the relay. I deployed both on the garage machine, opened the ports, and pointed a dynamic DNS hostname at it. With that in place, the kiosk can ignore the public servers entirely.
 
