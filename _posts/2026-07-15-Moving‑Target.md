@@ -1,0 +1,7 @@
+##Teh Internet
+
+RustDesk tightened its public infrastructure recently. After botnet abuse and automated scanning, the public relay now requires login, and that finally pushed me to set up my own server. RustDesk’s backend is small: HBBS for ID resolution and HBBR for the relay. I deployed both on the garage machine, opened the ports, and pointed a dynamic DNS hostname at it. With that in place, the kiosk can ignore the public servers entirely.
+
+The real problem wasn’t RustDesk — it was SSH. SSH is great when you control the network and the IPs stay put. Over the internet, dynamic IPs turn it into guesswork. My garage machine solves that by updating deSEC whenever its own IP changes. The kiosk doesn’t touch DNS at all; instead, it uses the deSEC hostname to send a small POST message to the garage machine. That message contains only one thing: the kiosk’s current public IP. The garage machine logs it, and that’s enough to keep SSH reachable without exposing any sensitive keys on the kiosk. If the kiosk ever gets compromised, it has no credentials that can modify my infrastructure.
+
+deSEC is the one external dependency in the chain. Running my own equivalent is possible in principle, but it’s right at the edge of what you can reasonably build without extra cost. For now, this setup works: RustDesk on my own hardware, SSH reachable through dynamic DNS, and a simple heartbeat that keeps the kiosk visible wherever it ends up.
