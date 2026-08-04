@@ -4,9 +4,9 @@ Some people drink whiskey like it’s a religion. Aged in oak, stored undergroun
 
 But part of being an adult — and a professional — is not just following what’s common or well‑known. It’s choosing what actually fits your life. As my dad used to say: “Principles are for people who can’t analyze a situation.”
 
-Debian is still my rock. If I need a server, Debian is the distro equivalent of a torque wrench: reliable, sturdy, and incapable of drama. But for daily use? Fedora has been a surprisingly good fit.
+If I need a server, or I'm building a computer as part of infrastructure, Debian is the distro i'll always default to. But for daily use? Fedora has been a surprisingly good fit.
 
-And part of why Fedora clicked this time is the machine I built. I hand‑picked components that actually want a modern Linux stack:
+And part of why Fedora clicked this time is the machine I built. I hand‑picked components that fit a modern Linux stack:
 ASRock B850 Pro‑A WiFi,
 AMD Ryzen 5 9600X,
 Intel Arc B580.
@@ -19,6 +19,6 @@ Fedora is Bourbon in the adult sense: not flashy, not ceremonial, not something 
 
 And Fedora behaves that way. Updates land cleanly, hardware cooperates, and I don’t have to babysit my repos like they’re houseplants. The defaults feel familiar coming from Debian, but Fedora’s philosophy is different in a way I appreciate: DNF is built for correctness first, speed second. It’s the package manager equivalent of a bartender you trust — not the fastest pour, but always the right one.
 
-Debian is the workhorse, the bedrock of what I consider the heart of Linux. Fedora is the smooth pour at the end of the day. And honestly? I’m at a point in my life where I appreciate a distro that doesn’t demand a thesis‑level commitment just to stay functional.
+Debian is the workhorse, the bedrock of what I consider the heart of Linux. Fedora is a comfortable and reliable desktop enviroment. And honestly? I’m at a point in my life where I appreciate a distro that doesn’t demand a thesis‑level commitment just to stay functional.
 
 Sometimes you just want the Bourbon. Sometimes you just run Fedora.
