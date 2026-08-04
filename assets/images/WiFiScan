@@ -1,0 +1,135 @@
+#!/bin/bash
+
+### CONFIG ###
+IFACE="wlan1"
+LOG_DIR="$HOME/wifi-logs"
+mkdir -p "$LOG_DIR"
+TS=$(date +%Y%m%d_%H%M%S)
+LOG_PREFIX="$LOG_DIR/scan-$TS"
+CHANNELS="1 6 11 2 3 4 5 7 8 9 10 12 13"
+GPS_ENABLED=true
+### END CONFIG ###
+
+echo "[*] Starting Wi-Fi scan at $TS"
+echo "[*] Logs will be saved to: $LOG_PREFIX.*"
+
+### 1. Enable monitor mode ###
+echo "[*] Setting $IFACE to monitor mode..."
+ip link set $IFACE down
+iw $IFACE set monitor control
+ip link set $IFACE up
+
+### 2. Start GPS logging (if gpsd is running) ###
+if $GPS_ENABLED; then
+    echo "[*] Checking GPS availability..."
+    if pgrep gpsd >/dev/null; then
+        echo "[*] GPS detected — logging coordinates..."
+        gpspipe -w | tee "$LOG_PREFIX-gps.json" >/dev/null &
+        GPS_PID=$!
+    else
+        echo "[!] GPS not detected — skipping GPS logging."
+        GPS_ENABLED=false
+    fi
+fi
+
+### Create unified logs ###
+PROBE_LOG="$LOG_PREFIX-probes.log"
+VENDOR_LOG="$LOG_PREFIX-vendors.log"
+SECURITY_LOG="$LOG_PREFIX-security.log"
+CHANNEL_LOG="$LOG_PREFIX-channels.log"
+HEATMAP_LOG="$LOG_PREFIX-heatmap.csv"
+FINGERPRINT_LOG="$LOG_PREFIX-fingerprints.log"
+
+touch "$PROBE_LOG" "$VENDOR_LOG" "$SECURITY_LOG" "$CHANNEL_LOG" "$HEATMAP_LOG" "$FINGERPRINT_LOG"
+
+### MAC vendor lookup helper ###
+lookup_vendor() {
+    local mac_prefix=$(echo "$1" | cut -d: -f1-3 | tr '[:lower:]' '[:upper:]')
+    local vendor=$(grep "^$mac_prefix" /usr/share/ieee-data/oui.txt | cut -f3)
+    echo "${vendor:-Unknown}"
+}
+
+### Security classification helper ###
+classify_security() {
+    local enc="$1"
+    if [[ "$enc" == "OPN" ]]; then echo "OPEN"; return; fi
+    if [[ "$enc" == *"WEP"* ]]; then echo "WEAK-WEP"; return; fi
+    if [[ "$enc" == *"WPA"* && "$enc" != *"CCMP"* ]]; then echo "WEAK-WPA"; return; fi
+    if [[ "$enc" == *"WPA2"* && "$enc" == *"TKIP"* ]]; then echo "WEAK-TKIP"; return; fi
+    if [[ "$enc" == *"WPA3"* ]]; then echo "SECURE-WPA3"; return; fi
+    echo "SECURE-WPA2"
+}
+
+### Channel quality helper ###
+rate_channel() {
+    local ch="$1"
+    case "$ch" in
+        1|6|11) echo "GOOD";;
+        2|3|4|5|7|8|9|10) echo "BAD";;
+        *) echo "UNKNOWN";;
+    esac
+}
+
+### 3. Channel hopping + airodump logging ###
+echo "[*] Starting channel hopping + airodump logging..."
+echo "[*] Press CTRL+C to stop."
+
+for CH in $CHANNELS; do
+    echo "[*] Switching to channel $CH"
+    iw dev $IFACE set channel $CH
+
+    timeout 10 airodump-ng --write "$LOG_PREFIX" --output-format csv $IFACE
+
+    CSV_FILE="${LOG_PREFIX}-01.csv"
+    if [[ -f "$CSV_FILE" ]]; then
+        echo "[*] Processing $CSV_FILE"
+
+        ### Extract APs ###
+        grep -v "Station MAC" "$CSV_FILE" | grep -v "^BSSID" | while IFS=',' read -r BSSID PWR BEACONS DATA RATE CHCSV MB ENC CIPHER AUTH ESSID REST; do
+            [[ "$BSSID" == "" ]] && continue
+
+            ### Security classification ###
+            SEC=$(classify_security "$ENC")
+            echo "$BSSID,$ESSID,$ENC,$SEC" >> "$SECURITY_LOG"
+
+            ### Channel quality ###
+            CHQ=$(rate_channel "$CHCSV")
+            echo "$BSSID,$ESSID,CH:$CHCSV,QUALITY:$CHQ" >> "$CHANNEL_LOG"
+
+            ### MAC vendor lookup ###
+            VENDOR=$(lookup_vendor "$BSSID")
+            echo "$BSSID,$ESSID,$VENDOR" >> "$VENDOR_LOG"
+
+            ### GPS heatmap ###
+            if $GPS_ENABLED; then
+                LAT=$(grep -m1 latitude "$LOG_PREFIX-gps.json" | awk -F: '{print $2}' | tr -d ', ')
+                LON=$(grep -m1 longitude "$LOG_PREFIX-gps.json" | awk -F: '{print $2}' | tr -d ', ')
+                echo "$LAT,$LON,$ESSID,$BSSID,$CHCSV,$PWR" >> "$HEATMAP_LOG"
+            fi
+        done
+
+        ### Extract clients + probes + fingerprinting ###
+        grep "Station MAC" -A999 "$CSV_FILE" | tail -n +2 | while IFS=',' read -r STATION LASTSEEN PWR RATE LOST FRAMES PROBES; do
+            [[ "$STATION" == "" ]] && continue
+
+            ### Probe log ###
+            echo "$STATION,$PROBES" >> "$PROBE_LOG"
+
+            ### Device fingerprinting ###
+            VENDOR=$(lookup_vendor "$STATION")
+            echo "MAC=$STATION,VENDOR=$VENDOR,PWR=$PWR,RATE=$RATE,FRAMES=$FRAMES,PROBES=$PROBES" >> "$FINGERPRINT_LOG"
+        done
+
+    else
+        echo "[!] CSV file missing for channel $CH"
+    fi
+done
+
+### 4. Cleanup ###
+if $GPS_ENABLED; then
+    echo "[*] Stopping GPS logging..."
+    kill $GPS_PID
+fi
+
+echo "[*] Scan complete."
+echo "[*] Logs saved under: $LOG_DIR"
