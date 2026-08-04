@@ -1,135 +1,281 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# WiFiScan — Passive Wi-Fi reconnaissance. For authorized use only.
 
-### CONFIG ###
+### ─── COLORS ────────────────────────────────────────────────────── ###
+RED='\033[0;31m'; YEL='\033[1;33m'; GRN='\033[0;32m'
+CYN='\033[0;36m'; BLD='\033[1m'; RST='\033[0m'
+info() { echo -e "${CYN}[*]${RST} $*"; }
+warn() { echo -e "${YEL}[!]${RST} $*"; }
+err()  { echo -e "${RED}[-]${RST} $*" >&2; }
+ok()   { echo -e "${GRN}[+]${RST} $*"; }
+
+### ─── USAGE ─────────────────────────────────────────────────────── ###
+usage() {
+    echo -e "${BLD}Usage:${RST} $(basename "$0") [OPTIONS]"
+    cat <<EOF
+
+Options:
+  -i IFACE      Wireless interface           (default: wlan1)
+  -d SECONDS    Dwell time per channel       (default: 10)
+  -b BAND       Band to scan: 2, 5, or both  (default: both)
+  -o DIR        Output log directory         (default: ~/wifi-logs)
+  -G            Disable GPS logging
+  -q            Quiet mode (suppress per-AP output)
+  -h            Show this help
+EOF
+    exit 0
+}
+
+### ─── DEFAULTS ──────────────────────────────────────────────────── ###
 IFACE="wlan1"
 LOG_DIR="$HOME/wifi-logs"
+DWELL=10
+BAND="both"
+GPS_ENABLED=true
+QUIET=false
+
+while getopts "i:d:b:o:Gqh" opt; do
+    case "$opt" in
+        i) IFACE="$OPTARG" ;;
+        d) DWELL="$OPTARG" ;;
+        b) BAND="$OPTARG" ;;
+        o) LOG_DIR="$OPTARG" ;;
+        G) GPS_ENABLED=false ;;
+        q) QUIET=true ;;
+        h) usage ;;
+        *) usage ;;
+    esac
+done
+
+### ─── CHANNEL LISTS ─────────────────────────────────────────────── ###
+CH_2G="1 6 11 2 3 4 5 7 8 9 10 12 13"
+CH_5G="36 40 44 48 52 56 60 64 100 104 108 112 116 120 124 128 132 136 140 149 153 157 161 165"
+case "$BAND" in
+    2)    CHANNELS="$CH_2G" ;;
+    5)    CHANNELS="$CH_5G" ;;
+    both) CHANNELS="$CH_2G $CH_5G" ;;
+    *)    err "Invalid band '$BAND'. Use 2, 5, or both."; exit 1 ;;
+esac
+
+### ─── PREFLIGHT CHECKS ──────────────────────────────────────────── ###
+[[ $EUID -ne 0 ]] && { err "Must be run as root (use sudo)."; exit 1; }
+
+missing=()
+for cmd in iw ip airodump-ng gpspipe awk grep; do
+    command -v "$cmd" &>/dev/null || missing+=("$cmd")
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+    err "Missing required tools: ${missing[*]}"
+    err "Install with: apt install aircrack-ng gpsd-clients iw wireless-tools"
+    exit 1
+fi
+
+iw dev "$IFACE" info &>/dev/null || { err "Interface '$IFACE' not found. Use -i to specify one."; exit 1; }
+
+### ─── LOG SETUP ─────────────────────────────────────────────────── ###
 mkdir -p "$LOG_DIR"
 TS=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/scan-$TS"
-CHANNELS="1 6 11 2 3 4 5 7 8 9 10 12 13"
-GPS_ENABLED=true
-### END CONFIG ###
+SCAN_CSV="$LOG_DIR/.scan_tmp_$$"   # temp dir for per-channel airodump output
 
-echo "[*] Starting Wi-Fi scan at $TS"
-echo "[*] Logs will be saved to: $LOG_PREFIX.*"
-
-### 1. Enable monitor mode ###
-echo "[*] Setting $IFACE to monitor mode..."
-ip link set $IFACE down
-iw $IFACE set monitor control
-ip link set $IFACE up
-
-### 2. Start GPS logging (if gpsd is running) ###
-if $GPS_ENABLED; then
-    echo "[*] Checking GPS availability..."
-    if pgrep gpsd >/dev/null; then
-        echo "[*] GPS detected — logging coordinates..."
-        gpspipe -w | tee "$LOG_PREFIX-gps.json" >/dev/null &
-        GPS_PID=$!
-    else
-        echo "[!] GPS not detected — skipping GPS logging."
-        GPS_ENABLED=false
-    fi
-fi
-
-### Create unified logs ###
 PROBE_LOG="$LOG_PREFIX-probes.log"
 VENDOR_LOG="$LOG_PREFIX-vendors.log"
 SECURITY_LOG="$LOG_PREFIX-security.log"
 CHANNEL_LOG="$LOG_PREFIX-channels.log"
 HEATMAP_LOG="$LOG_PREFIX-heatmap.csv"
 FINGERPRINT_LOG="$LOG_PREFIX-fingerprints.log"
+SUMMARY_LOG="$LOG_PREFIX-summary.txt"
+SEEN_BSSIDS="${TMPDIR:-/tmp}/wifiscan_seen_$$"
 
-touch "$PROBE_LOG" "$VENDOR_LOG" "$SECURITY_LOG" "$CHANNEL_LOG" "$HEATMAP_LOG" "$FINGERPRINT_LOG"
+mkdir -p "$SCAN_CSV"
+touch "$PROBE_LOG" "$VENDOR_LOG" "$CHANNEL_LOG" "$FINGERPRINT_LOG" "$SEEN_BSSIDS"
 
-### MAC vendor lookup helper ###
+# CSV headers
+echo "BSSID,ESSID,Channel,Signal_dBm,Encryption,Cipher,Security,Hidden,Vendor" > "$SECURITY_LOG"
+echo "Lat,Lon,ESSID,BSSID,Channel,Signal_dBm" > "$HEATMAP_LOG"
+
+### ─── CLEANUP / TRAP ────────────────────────────────────────────── ###
+GPS_PID=""
+cleanup() {
+    echo ""
+    warn "Shutting down..."
+    [[ -n "$GPS_PID" ]] && kill "$GPS_PID" 2>/dev/null && info "GPS logging stopped."
+    ip link set "$IFACE" down 2>/dev/null
+    iw "$IFACE" set type managed 2>/dev/null
+    ip link set "$IFACE" up 2>/dev/null
+    ok "Interface $IFACE restored to managed mode."
+    rm -rf "$SCAN_CSV" "$SEEN_BSSIDS"
+    generate_summary
+    info "All logs saved under: $LOG_DIR"
+}
+trap cleanup EXIT INT TERM
+
+### ─── HELPERS ───────────────────────────────────────────────────── ###
 lookup_vendor() {
-    local mac_prefix=$(echo "$1" | cut -d: -f1-3 | tr '[:lower:]' '[:upper:]')
-    local vendor=$(grep "^$mac_prefix" /usr/share/ieee-data/oui.txt | cut -f3)
-    echo "${vendor:-Unknown}"
+    local prefix oui="/usr/share/ieee-data/oui.txt"
+    prefix=$(echo "$1" | cut -d: -f1-3 | tr '[:lower:]' '[:upper:]' | tr -d ':')
+    [[ -f "$oui" ]] && grep -i "^$prefix" "$oui" | head -1 | cut -f3- | xargs 2>/dev/null || echo "Unknown"
 }
 
-### Security classification helper ###
 classify_security() {
-    local enc="$1"
-    if [[ "$enc" == "OPN" ]]; then echo "OPEN"; return; fi
-    if [[ "$enc" == *"WEP"* ]]; then echo "WEAK-WEP"; return; fi
-    if [[ "$enc" == *"WPA"* && "$enc" != *"CCMP"* ]]; then echo "WEAK-WPA"; return; fi
-    if [[ "$enc" == *"WPA2"* && "$enc" == *"TKIP"* ]]; then echo "WEAK-TKIP"; return; fi
-    if [[ "$enc" == *"WPA3"* ]]; then echo "SECURE-WPA3"; return; fi
-    echo "SECURE-WPA2"
+    local enc="$1" cipher="$2"
+    [[ "$enc" == "OPN"     ]] && echo "OPEN"         && return
+    [[ "$enc" == *"WEP"*   ]] && echo "WEAK-WEP"     && return
+    [[ "$enc" == *"WPA3"*  ]] && echo "STRONG-WPA3"  && return
+    [[ "$enc" == *"WPA2"* && "$cipher" == *"CCMP"* ]] && echo "GOOD-WPA2" && return
+    [[ "$enc" == *"WPA2"* && "$cipher" == *"TKIP"* ]] && echo "WEAK-TKIP" && return
+    [[ "$enc" == *"WPA"*   ]] && echo "WEAK-WPA"     && return
+    echo "UNKNOWN"
 }
 
-### Channel quality helper ###
 rate_channel() {
-    local ch="$1"
-    case "$ch" in
-        1|6|11) echo "GOOD";;
-        2|3|4|5|7|8|9|10) echo "BAD";;
-        *) echo "UNKNOWN";;
+    case "$1" in
+        1|6|11)             echo "NON-OVERLAPPING" ;;
+        2|3|4|5|7|8|9|10)  echo "OVERLAPPING-2G"  ;;
+        *)                  echo "5GHz"            ;;
     esac
 }
 
-### 3. Channel hopping + airodump logging ###
-echo "[*] Starting channel hopping + airodump logging..."
-echo "[*] Press CTRL+C to stop."
+is_hidden() {
+    local e="$1"
+    [[ -z "${e// }" || "$e" == "<length:"* ]] && echo "YES" || echo "NO"
+}
 
-for CH in $CHANNELS; do
-    echo "[*] Switching to channel $CH"
-    iw dev $IFACE set channel $CH
+get_gps_coords() {
+    local gps_file="$LOG_PREFIX-gps.jsonl"
+    [[ ! -s "$gps_file" ]] && echo "0,0" && return
+    local lat lon
+    lat=$(grep -o '"lat":[0-9.-]*' "$gps_file" | tail -1 | cut -d: -f2)
+    lon=$(grep -o '"lon":[0-9.-]*' "$gps_file" | tail -1 | cut -d: -f2)
+    echo "${lat:-0},${lon:-0}"
+}
 
-    timeout 10 airodump-ng --write "$LOG_PREFIX" --output-format csv $IFACE
+### ─── CSV PROCESSOR ─────────────────────────────────────────────── ###
+process_csv() {
+    local csv_file="$1"
+    [[ ! -f "$csv_file" ]] && return
 
-    CSV_FILE="${LOG_PREFIX}-01.csv"
-    if [[ -f "$CSV_FILE" ]]; then
-        echo "[*] Processing $CSV_FILE"
+    # AP section: lines before the "Station MAC" marker
+    while IFS=',' read -r BSSID PWR _ _ _ CH _ ENC CIPHER _ ESSID _; do
+        BSSID=$(echo "$BSSID" | xargs 2>/dev/null); ESSID=$(echo "$ESSID" | xargs 2>/dev/null)
+        ENC=$(echo "$ENC" | xargs 2>/dev/null);   CIPHER=$(echo "$CIPHER" | xargs 2>/dev/null)
+        CH=$(echo "$CH" | xargs 2>/dev/null);     PWR=$(echo "$PWR" | xargs 2>/dev/null)
 
-        ### Extract APs ###
-        grep -v "Station MAC" "$CSV_FILE" | grep -v "^BSSID" | while IFS=',' read -r BSSID PWR BEACONS DATA RATE CHCSV MB ENC CIPHER AUTH ESSID REST; do
-            [[ "$BSSID" == "" ]] && continue
+        [[ -z "$BSSID" ]] && continue
+        [[ ! "$BSSID" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] && continue
+        grep -qxF "$BSSID" "$SEEN_BSSIDS" && continue
+        echo "$BSSID" >> "$SEEN_BSSIDS"
 
-            ### Security classification ###
-            SEC=$(classify_security "$ENC")
-            echo "$BSSID,$ESSID,$ENC,$SEC" >> "$SECURITY_LOG"
+        local SEC HIDDEN VENDOR CHQ COORDS
+        SEC=$(classify_security "$ENC" "$CIPHER")
+        HIDDEN=$(is_hidden "$ESSID")
+        VENDOR=$(lookup_vendor "$BSSID")
+        CHQ=$(rate_channel "$CH")
 
-            ### Channel quality ###
-            CHQ=$(rate_channel "$CHCSV")
-            echo "$BSSID,$ESSID,CH:$CHCSV,QUALITY:$CHQ" >> "$CHANNEL_LOG"
+        echo "$BSSID,$ESSID,$CH,$PWR,$ENC,$CIPHER,$SEC,$HIDDEN,$VENDOR" >> "$SECURITY_LOG"
+        echo "$BSSID,$ESSID,CH:${CH},QUALITY:$CHQ" >> "$CHANNEL_LOG"
+        echo "$BSSID,$ESSID,$VENDOR" >> "$VENDOR_LOG"
 
-            ### MAC vendor lookup ###
-            VENDOR=$(lookup_vendor "$BSSID")
-            echo "$BSSID,$ESSID,$VENDOR" >> "$VENDOR_LOG"
+        if $GPS_ENABLED; then
+            COORDS=$(get_gps_coords)
+            echo "${COORDS},${ESSID},${BSSID},${CH},${PWR}" >> "$HEATMAP_LOG"
+        fi
 
-            ### GPS heatmap ###
-            if $GPS_ENABLED; then
-                LAT=$(grep -m1 latitude "$LOG_PREFIX-gps.json" | awk -F: '{print $2}' | tr -d ', ')
-                LON=$(grep -m1 longitude "$LOG_PREFIX-gps.json" | awk -F: '{print $2}' | tr -d ', ')
-                echo "$LAT,$LON,$ESSID,$BSSID,$CHCSV,$PWR" >> "$HEATMAP_LOG"
-            fi
-        done
+        if ! $QUIET; then
+            local label="${ESSID:-[hidden]}"
+            case "$SEC" in
+                OPEN)        echo -e "  ${RED}[OPEN]${RST}         $label ($BSSID) CH:$CH ${PWR}dBm  $VENDOR" ;;
+                WEAK*)       echo -e "  ${YEL}[$SEC]${RST} $label ($BSSID) CH:$CH ${PWR}dBm  $VENDOR" ;;
+                STRONG*)     echo -e "  ${GRN}[$SEC]${RST} $label ($BSSID) CH:$CH ${PWR}dBm  $VENDOR" ;;
+                GOOD*)       echo -e "  ${GRN}[$SEC]${RST}   $label ($BSSID) CH:$CH ${PWR}dBm  $VENDOR" ;;
+                *)           echo -e "  ${CYN}[$SEC]${RST}     $label ($BSSID) CH:$CH ${PWR}dBm  $VENDOR" ;;
+            esac
+            [[ "$HIDDEN" == "YES" ]] && echo -e "    ${YEL}^ hidden SSID${RST}"
+        fi
 
-        ### Extract clients + probes + fingerprinting ###
-        grep "Station MAC" -A999 "$CSV_FILE" | tail -n +2 | while IFS=',' read -r STATION LASTSEEN PWR RATE LOST FRAMES PROBES; do
-            [[ "$STATION" == "" ]] && continue
+    done < <(awk '/^Station MAC/{exit} !/^[[:space:]]*(BSSID|$)/' "$csv_file")
 
-            ### Probe log ###
-            echo "$STATION,$PROBES" >> "$PROBE_LOG"
+    # Client/probe section: lines after the "Station MAC" header
+    while IFS=',' read -r STATION _ _ PWR RATE LOST FRAMES PROBES _; do
+        STATION=$(echo "$STATION" | xargs 2>/dev/null)
+        [[ -z "$STATION" || "$STATION" == "Station MAC" ]] && continue
+        [[ ! "$STATION" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] && continue
 
-            ### Device fingerprinting ###
-            VENDOR=$(lookup_vendor "$STATION")
-            echo "MAC=$STATION,VENDOR=$VENDOR,PWR=$PWR,RATE=$RATE,FRAMES=$FRAMES,PROBES=$PROBES" >> "$FINGERPRINT_LOG"
-        done
+        PROBES=$(echo "$PROBES" | xargs 2>/dev/null)
+        echo "$STATION,$PROBES" >> "$PROBE_LOG"
+        local V
+        V=$(lookup_vendor "$STATION")
+        echo "MAC=$STATION,VENDOR=$V,PWR=$PWR,RATE=$RATE,FRAMES=$FRAMES,PROBES=$PROBES" >> "$FINGERPRINT_LOG"
+    done < <(awk '/^Station MAC/{found=1; next} found && !/^[[:space:]]*$/' "$csv_file")
+}
 
-    else
-        echo "[!] CSV file missing for channel $CH"
-    fi
-done
+### ─── SUMMARY ───────────────────────────────────────────────────── ###
+generate_summary() {
+    local total_aps open_nets weak_nets strong_nets hidden_nets total_clients
+    total_aps=$(tail -n +2 "$SECURITY_LOG" 2>/dev/null | grep -c , || echo 0)
+    open_nets=$(grep -c ',OPEN,' "$SECURITY_LOG" 2>/dev/null || echo 0)
+    weak_nets=$(grep -c ',WEAK' "$SECURITY_LOG" 2>/dev/null || echo 0)
+    strong_nets=$(grep -cE ',(STRONG|GOOD)' "$SECURITY_LOG" 2>/dev/null || echo 0)
+    hidden_nets=$(grep -c ',YES,' "$SECURITY_LOG" 2>/dev/null || echo 0)
+    total_clients=$(grep -c 'MAC=' "$FINGERPRINT_LOG" 2>/dev/null || echo 0)
 
-### 4. Cleanup ###
+    {
+        echo "═══════════════════════════════════════════"
+        echo "  WiFiScan Summary  —  $TS"
+        echo "═══════════════════════════════════════════"
+        printf "  %-14s: %s\n" "Interface"   "$IFACE"
+        printf "  %-14s: %s\n" "Band"        "$BAND"
+        printf "  %-14s: ${DWELL}s per channel\n" "Dwell time"
+        printf "  %-14s: %s\n" "GPS"         "$GPS_ENABLED"
+        echo "───────────────────────────────────────────"
+        printf "  %-14s: %s\n" "APs found"   "$total_aps"
+        printf "  %-14s: %s\n" "Clients seen" "$total_clients"
+        printf "  %-14s: %s\n" "Open nets"   "$open_nets"
+        printf "  %-14s: %s\n" "Weak nets"   "$weak_nets"
+        printf "  %-14s: %s\n" "Strong nets" "$strong_nets"
+        printf "  %-14s: %s\n" "Hidden SSIDs" "$hidden_nets"
+        echo "═══════════════════════════════════════════"
+    } | tee "$SUMMARY_LOG"
+}
+
+### ─── MONITOR MODE ──────────────────────────────────────────────── ###
+info "Setting $IFACE to monitor mode..."
+ip link set "$IFACE" down
+iw "$IFACE" set monitor control
+ip link set "$IFACE" up
+ok "Monitor mode active on $IFACE"
+
+### ─── GPS ───────────────────────────────────────────────────────── ###
+GPS_JSON="$LOG_PREFIX-gps.jsonl"
 if $GPS_ENABLED; then
-    echo "[*] Stopping GPS logging..."
-    kill $GPS_PID
+    info "Checking GPS (gpsd)..."
+    if pgrep gpsd >/dev/null 2>&1; then
+        gpspipe -w > "$GPS_JSON" &
+        GPS_PID=$!
+        ok "GPS logging started (PID $GPS_PID)"
+        sleep 1   # let gpspipe collect an initial fix
+    else
+        warn "gpsd not running — GPS disabled. Start with: gpsd /dev/ttyUSB0 -F /var/run/gpsd.sock"
+        GPS_ENABLED=false
+    fi
 fi
 
-echo "[*] Scan complete."
-echo "[*] Logs saved under: $LOG_DIR"
+### ─── SCAN LOOP ─────────────────────────────────────────────────── ###
+info "Starting scan — band=$BAND, dwell=${DWELL}s/ch. Press Ctrl+C to stop."
+echo ""
+
+for CH in $CHANNELS; do
+    info "Channel $CH..."
+    iw dev "$IFACE" set channel "$CH" 2>/dev/null || { warn "Cannot set channel $CH — skipping."; continue; }
+
+    # Fresh output file for each channel to avoid airodump's -02, -03 naming
+    rm -f "$SCAN_CSV"/ch-* 2>/dev/null
+    timeout "$DWELL" airodump-ng \
+        --channel "$CH" \
+        --write "$SCAN_CSV/ch-$CH" \
+        --output-format csv \
+        --write-interval 5 \
+        "$IFACE" &>/dev/null || true
+
+    process_csv "$SCAN_CSV/ch-${CH}-01.csv"
+done
