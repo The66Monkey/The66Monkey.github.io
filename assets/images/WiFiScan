@@ -18,7 +18,7 @@ ok()   { echo -e "${GRN}[+]${RST} $*"; }
 IFACE="wlan1"                      # USB adapter (RTL8812AU) — put into monitor mode
 MANAGED_IFACE="wlan0"              # internal adapter — stays managed for connectivity
 SSID_FILE="$HOME/Open-Nets.csv"    # pre-configured list of trusted open SSIDs to auto-join
-LOG_DIR="$HOME/wifi-logs"
+LOG_DIR="/var/log/wifiscan"  # world-readable system log dir; avoids logs buried under /root
 SHARED_DIR=""
 DWELL=10                           # seconds airodump-ng listens per channel
 BAND="both"
@@ -124,16 +124,14 @@ if [[ -z "$SHARED_DIR" ]]; then
     SHARED_DIR="$LOG_DIR/shared"
 fi
 mkdir -p "$SHARED_DIR"
+chmod 755 "$LOG_DIR" "$SHARED_DIR"  # ensure normal users can read logs without sudo
 TS=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/scan-$TS"
 SCAN_CSV="$LOG_DIR/.scan_tmp_$$"   # temp dir for per-channel airodump output
 
 # Per-run timestamped files sit under LOG_PREFIX; persistent cross-run files go in LOG_DIR.
-PROBE_LOG="$LOG_PREFIX-probes.log"
-VENDOR_LOG="$LOG_PREFIX-vendors.log"
 SECURITY_LOG="$LOG_PREFIX-security.log"
 WPS_LOG="$LOG_PREFIX-wps.log"
-CHANNEL_LOG="$LOG_PREFIX-channels.log"
 HEATMAP_LOG="$LOG_PREFIX-heatmap.csv"
 FINGERPRINT_LOG="$LOG_PREFIX-fingerprints.log"
 SUMMARY_LOG="$LOG_PREFIX-summary.txt"
@@ -147,7 +145,7 @@ NETWORK_RAW="$LOG_DIR/network-raw.log"
 OPEN_NETS_FILE="$LOG_DIR/Open-Nets.csv"
 
 mkdir -p "$SCAN_CSV"
-touch "$PROBE_LOG" "$VENDOR_LOG" "$CHANNEL_LOG" "$WPS_LOG" "$FINGERPRINT_LOG" "$SEEN_BSSIDS" "$OPEN_SSIDS_LIVE"
+touch "$WPS_LOG" "$FINGERPRINT_LOG" "$SEEN_BSSIDS" "$OPEN_SSIDS_LIVE"
 
 if [ ! -f "$SHARED_EVENTS_FILE" ]; then
     echo "timestamp,source,mode,ssid,bssid,channel,rssi,encryption,vendor,router_model,extra" > "$SHARED_EVENTS_FILE"
@@ -467,7 +465,15 @@ active_map_connected() {
 
         now_epoch="$(date +%s)"
         if [ "$gw_ip" != "$LAST_AGGR_GW" ] || [ $((now_epoch - LAST_AGGR_SCAN_TS)) -ge "$AGGRESSIVE_SCAN_INTERVAL" ]; then
-            nmap_open="$(timeout 60 nmap -T4 --max-retries 2 --open --reason "$my_cidr" 2>/dev/null || true)"
+            # Scan only live hosts from the ping sweep — far faster than scanning the whole CIDR.
+            local live_hosts
+            live_hosts="$(echo "$nmap_ping" | awk '/Nmap scan report/{print $NF}' | tr '\n' ' ')"
+            if [ -n "${live_hosts// }" ]; then
+                nmap_open="$(timeout 180 nmap -T4 --max-retries 1 --open --reason \
+                    --top-ports 50 $live_hosts 2>/dev/null || true)"
+            else
+                nmap_open=""
+            fi
             echo "$nmap_open" >> "$NETWORK_RAW"
 
             echo "$nmap_open" | awk '
@@ -573,11 +579,10 @@ process_csv() {
         grep -qxF "$BSSID" "$SEEN_BSSIDS" && continue
         echo "$BSSID" >> "$SEEN_BSSIDS"
 
-        local SEC HIDDEN VENDOR CHQ COORDS
+        local SEC HIDDEN VENDOR COORDS
         SEC=$(classify_security "$ENC" "$CIPHER")
         HIDDEN=$(is_hidden "$ESSID")
         VENDOR=$(lookup_vendor "$BSSID")
-        CHQ=$(rate_channel "$CH")
         NOW_TS=$(date +%Y-%m-%dT%H:%M:%S)
 
         echo "$BSSID,$ESSID,$CH,$PWR,$ENC,$CIPHER,$AUTH,$SEC,$HIDDEN,$WPS,$VENDOR" >> "$SECURITY_LOG"
@@ -585,8 +590,6 @@ process_csv() {
             echo "$BSSID,$ESSID,$WPS,$WPS_MFR,$WPS_MODEL" >> "$WPS_LOG"
             ! $QUIET && echo -e "  ${YEL}[WPS]${RST}          ${ESSID:-[hidden]} ($BSSID) WPS:$WPS $WPS_MFR $WPS_MODEL"
         fi
-        echo "$BSSID,$ESSID,CH:${CH},QUALITY:$CHQ" >> "$CHANNEL_LOG"
-        echo "$BSSID,$ESSID,$VENDOR" >> "$VENDOR_LOG"
         printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" \
             "$(csv_escape "$NOW_TS")" \
             "$(csv_escape "passive")" \
@@ -647,7 +650,7 @@ process_csv() {
         [[ ! "$STATION" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] && continue
 
         PROBES=$(echo "$PROBES" | xargs 2>/dev/null)
-        echo "$STATION,$PROBES" >> "$PROBE_LOG"
+        # probes already captured in the line below; no separate probe log needed
         local V
         V=$(lookup_vendor "$STATION")
         echo "MAC=$STATION,VENDOR=$V,PWR=$PWR,RATE=$RATE,FRAMES=$FRAMES,PROBES=$PROBES" >> "$FINGERPRINT_LOG"
