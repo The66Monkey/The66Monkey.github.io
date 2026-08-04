@@ -31,6 +31,8 @@ FULL_RESCAN_EVERY=10              # full channel sweep every N loops to catch ne
 declare -A CH_HITS=()             # AP count per channel; drives adaptive skip
 LAST_AGGR_SCAN_TS=0
 LAST_AGGR_GW=""
+SSL_WARNING_COUNT=0   # incremented per gateway with SSL/TLS issues found
+SNMP_WARNING_COUNT=0  # incremented per gateway responding to public SNMP
 
 ### ─── SELF-DAEMONIZE ────────────────────────────────────────────── ###
 # Re-exec with nohup+redirect when run directly; WIFISCAN_DAEMON guards against recursion.
@@ -135,6 +137,7 @@ WPS_LOG="$LOG_PREFIX-wps.log"
 HEATMAP_LOG="$LOG_PREFIX-heatmap.csv"
 FINGERPRINT_LOG="$LOG_PREFIX-fingerprints.log"
 SUMMARY_LOG="$LOG_PREFIX-summary.txt"
+VULN_REPORT="$LOG_PREFIX-vuln-report.txt"
 SEEN_BSSIDS="${TMPDIR:-/tmp}/wifiscan_seen_$$"
 OPEN_SSIDS_LIVE="${TMPDIR:-/tmp}/wifiscan_open_ssids_$$"  # live-discovered open SSIDs for auto-connect
 SHARED_EVENTS_FILE="$SHARED_DIR/events.csv"
@@ -185,6 +188,7 @@ cleanup() {
     ok "Interface $IFACE restored to managed mode."
     rm -rf "$SCAN_CSV" "$SEEN_BSSIDS" "$OPEN_SSIDS_LIVE"
     generate_summary
+    generate_vuln_report
     info "All logs saved under: $LOG_DIR"
 }
 trap cleanup EXIT INT TERM HUP
@@ -397,7 +401,10 @@ active_map_connected() {
         [ -z "$gw_mac" ] && gw_mac="$hint_bssid"
         [ "$gw_vendor" = "Unknown" ] && [ -n "$hint_vendor" ] && gw_vendor="$hint_vendor"
 
-        router_fp="$(timeout 30 nmap -Pn -sV --version-light --script=http-title,http-server-header,upnp-info -p 53,80,443,1900,5000 "$gw_ip" 2>/dev/null || true)"
+        # vuln category covers Heartbleed, POODLE, EternalBlue etc; ssl-enum-ciphers is not in vuln category so kept explicitly.
+        router_fp="$(timeout 120 nmap -Pn -sV --version-light \
+            --script=vuln,http-title,http-server-header,upnp-info,ssl-cert,ssl-enum-ciphers \
+            -p 53,80,443,1900,5000,8080,8443 "$gw_ip" 2>/dev/null || true)"
         echo "$router_fp" >> "$NETWORK_RAW"
 
         router_model="$(echo "$router_fp" | awk '
@@ -406,6 +413,17 @@ active_map_connected() {
             /Service Info:/ {gsub(/^[ \t]+/, "", $0); print; exit}
             /http-title:/ {gsub(/^[ \t]+/, "", $0); print; exit}
         ')"
+
+        # Warn on anything ssl-enum-ciphers graded below A or flagged as vulnerable.
+        local ssl_issues
+        ssl_issues="$(echo "$router_fp" | grep -E \
+            'VULNERABLE|least strength: [BCDF]|TLSv1\.0|SSLv|RC4|DES|EXPORT|NULL|WEAK|expired|self-signed' \
+            | head -10 | tr '\n' '; ')"
+        if [ -n "${ssl_issues// }" ]; then
+            warn "SSL/TLS issue on gateway $gw_ip: $ssl_issues"
+            log_shared_event "$ts" "active" "$ssid" "${gw_mac:-}" "" "" "" "${gw_vendor:-}" "${router_model:-}" "SSL-WARNING:${ssl_issues}"
+            SSL_WARNING_COUNT=$((SSL_WARNING_COUNT + 1))
+        fi
 
         printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" \
             "$(csv_escape "$ts")" \
@@ -469,8 +487,9 @@ active_map_connected() {
             local live_hosts
             live_hosts="$(echo "$nmap_ping" | awk '/Nmap scan report/{print $NF}' | tr '\n' ' ')"
             if [ -n "${live_hosts// }" ]; then
-                nmap_open="$(timeout 180 nmap -T4 --max-retries 1 --open --reason \
-                    --top-ports 50 $live_hosts 2>/dev/null || true)"
+                # vuln scripts (EternalBlue, BlueKeep, etc.) run only against ports found open.
+                nmap_open="$(timeout 300 nmap -T4 --max-retries 1 --open --reason \
+                    --script vuln --top-ports 50 $live_hosts 2>/dev/null || true)"
             else
                 nmap_open=""
             fi
@@ -543,6 +562,7 @@ active_map_connected() {
             snmp_summary="$(echo "$snmp_out" | head -3 | tr '\n' ';')"
             log_shared_event "$ts" "active" "$ssid" "${gw_mac:-}" "" "" "" "${gw_vendor:-}" "" "SNMP-public:${snmp_summary}"
             warn "SNMP public community responding on $gw_ip — potential info disclosure"
+            SNMP_WARNING_COUNT=$((SNMP_WARNING_COUNT + 1))
         fi
     fi
 
@@ -656,6 +676,131 @@ process_csv() {
         echo "MAC=$STATION,VENDOR=$V,PWR=$PWR,RATE=$RATE,FRAMES=$FRAMES,PROBES=$PROBES" >> "$FINGERPRINT_LOG"
         log_shared_event "$(date +%Y-%m-%dT%H:%M:%S)" "passive-client" "$PROBES" "$STATION" "" "$PWR" "" "$V" "" "client-probe"
     done < <(awk '/^Station MAC/{found=1; next} found && !/^[[:space:]]*$/' "$csv_file")
+}
+
+### ─── VULNERABILITY REPORT ──────────────────────────────────────── ###
+generate_vuln_report() {
+    local score=0
+    local -a findings=()
+    local -a remediation=()
+
+    # ── confirmed vulnerabilities from nmap vuln scripts ──────────
+    local confirmed_vulns vuln_score
+    confirmed_vulns="$(grep -c 'VULNERABLE:' "$NETWORK_RAW" 2>/dev/null || echo 0)"
+    if [[ $confirmed_vulns -gt 0 ]]; then
+        vuln_score=$((confirmed_vulns * 25))
+        score=$((score + vuln_score))
+        findings+=("CRITICAL | $confirmed_vulns confirmed vulnerability/vulnerabilities from nmap --script vuln (see network-raw.log)")
+        # List the specific CVEs nmap confirmed.
+        while IFS= read -r vuln_line; do
+            findings+=("         \\_ $vuln_line")
+        done < <(grep 'VULNERABLE:' "$NETWORK_RAW" 2>/dev/null | sed 's/^[[:space:]]*//' | sort -u | head -10)
+        remediation+=("Review network-raw.log for confirmed CVEs and patch affected systems immediately.")
+    fi
+
+    # ── passive AP findings ────────────────────────────────────────
+    local open_count wep_count wpa_count tkip_count wps_count hidden_count
+    open_count=$(grep -c  ',OPEN,'       "$SECURITY_LOG" 2>/dev/null || echo 0)
+    wep_count=$(grep  -c  ',WEAK-WEP,'  "$SECURITY_LOG" 2>/dev/null || echo 0)
+    wpa_count=$(grep  -c  ',WEAK-WPA,'  "$SECURITY_LOG" 2>/dev/null || echo 0)
+    tkip_count=$(grep -c  ',WEAK-TKIP,' "$SECURITY_LOG" 2>/dev/null || echo 0)
+    wps_count=$(tail -n +2 "$WPS_LOG"   2>/dev/null | grep -c . || echo 0)
+    hidden_count=$(grep -c ',YES,'      "$SECURITY_LOG" 2>/dev/null || echo 0)
+
+    [[ $open_count  -gt 0 ]] && { score=$((score+25*open_count));
+        findings+=("CRITICAL | $open_count unencrypted open network(s) — anyone can intercept traffic");
+        remediation+=("Enable WPA2 or WPA3 on every access point immediately."); }
+
+    [[ $wep_count   -gt 0 ]] && { score=$((score+20*wep_count));
+        findings+=("CRITICAL | $wep_count network(s) using WEP — crackable in under 5 minutes");
+        remediation+=("Replace WEP with WPA2-AES or WPA3 in each router's wireless settings."); }
+
+    [[ $wpa_count   -gt 0 ]] && { score=$((score+15));
+        findings+=("HIGH     | $wpa_count network(s) using WPA (TKIP-only) — deprecated since 2009");
+        remediation+=("Upgrade WPA networks to WPA2-AES or WPA3."); }
+
+    [[ $tkip_count  -gt 0 ]] && { score=$((score+10));
+        findings+=("MEDIUM   | $tkip_count WPA2 network(s) still offering TKIP cipher — weaker than AES");
+        remediation+=("Change cipher from TKIP to AES/CCMP in router wireless security settings."); }
+
+    [[ $wps_count   -gt 0 ]] && { score=$((score+12*wps_count));
+        findings+=("HIGH     | $wps_count network(s) have WPS enabled — PIN brute-force (CVE-2011-5053, CVSS 7.8)");
+        remediation+=("Disable WPS (especially PIN mode) in each router's wireless settings."); }
+
+    [[ $hidden_count -gt 0 ]] && { score=$((score+2));
+        findings+=("LOW      | $hidden_count hidden SSID(s) — obscurity is not security"); }
+
+    # ── active gateway findings ────────────────────────────────────
+    [[ $SSL_WARNING_COUNT  -gt 0 ]] && { score=$((score+15));
+        findings+=("HIGH     | Deprecated SSL/TLS ciphers or protocols on gateway (e.g. TLS 1.0, RC4, self-signed cert)");
+        remediation+=("Update router firmware. If no update is available, consider replacing the router."); }
+
+    [[ $SNMP_WARNING_COUNT -gt 0 ]] && { score=$((score+15));
+        findings+=("HIGH     | Gateway responds to SNMP 'public' community — exposes device config info");
+        remediation+=("Disable SNMP or change the community string from 'public' in router management."); }
+
+    # ── sensitive open ports on subnet hosts ──────────────────────
+    local telnet_count ftp_count rdp_count smb_count
+    telnet_count=$(grep -c 'NmapOpen:.*23/' "$NETWORK_CSV" 2>/dev/null || echo 0)
+    ftp_count=$(   grep -c 'NmapOpen:.*21/' "$NETWORK_CSV" 2>/dev/null || echo 0)
+    rdp_count=$(   grep -c 'NmapOpen:.*3389/' "$NETWORK_CSV" 2>/dev/null || echo 0)
+    smb_count=$(   grep -c 'NmapOpen:.*445/' "$NETWORK_CSV" 2>/dev/null || echo 0)
+
+    [[ $telnet_count -gt 0 ]] && { score=$((score+12));
+        findings+=("HIGH     | Telnet (port 23) open on $telnet_count host(s) — credentials sent in plain text");
+        remediation+=("Disable Telnet on all devices; use SSH instead."); }
+
+    [[ $ftp_count    -gt 0 ]] && { score=$((score+8));
+        findings+=("MEDIUM   | FTP (port 21) open on $ftp_count host(s) — transfers unencrypted");
+        remediation+=("Replace FTP with SFTP or FTPS."); }
+
+    [[ $rdp_count    -gt 0 ]] && { score=$((score+20));
+        findings+=("HIGH     | RDP (port 3389) exposed on $rdp_count host(s) — brute-force target; BlueKeep class CVEs reach CVSS 9.8");
+        remediation+=("Restrict RDP behind VPN or disable if unused. Patch all Windows hosts."); }
+
+    [[ $smb_count    -gt 0 ]] && { score=$((score+20));
+        findings+=("HIGH     | SMB (port 445) open on $smb_count host(s) — EternalBlue class CVEs reach CVSS 9.8");
+        remediation+=("Apply all Windows/Samba patches. Block port 445 at the firewall for public-facing segments."); }
+
+    # ── grade ──────────────────────────────────────────────────────
+    local grade label
+    if   [[ $score -eq 0   ]]; then grade="A"; label="Secure — no issues found"
+    elif [[ $score -le 15  ]]; then grade="B"; label="Good — minor concerns"
+    elif [[ $score -le 35  ]]; then grade="C"; label="Moderate risk — review recommended"
+    elif [[ $score -le 60  ]]; then grade="D"; label="Significant risk — action needed soon"
+    else                             grade="F"; label="Critical — immediate action required"
+    fi
+
+    # ── write report ───────────────────────────────────────────────
+    {
+        echo "╔══════════════════════════════════════════════════╗"
+        echo "║          NETWORK VULNERABILITY REPORT            ║"
+        echo "╚══════════════════════════════════════════════════╝"
+        printf "  Scan date : %s\n" "$(date '+%Y-%m-%d %H:%M')"
+        printf "  Log dir   : %s\n" "$LOG_DIR"
+        echo   "──────────────────────────────────────────────────"
+        printf "  Risk score: %s / 100+\n" "$score"
+        printf "  Grade     : %s  (%s)\n"  "$grade" "$label"
+        echo   "──────────────────────────────────────────────────"
+        if [[ ${#findings[@]} -eq 0 ]]; then
+            echo "  No vulnerabilities found."
+        else
+            echo "  Issues:"
+            for f in "${findings[@]}"; do
+                printf "    [%s]\n" "$f"
+            done
+        fi
+        if [[ ${#remediation[@]} -gt 0 ]]; then
+            echo ""
+            echo "  Recommended actions (in priority order):"
+            local i=1
+            for r in "${remediation[@]}"; do
+                printf "    %d. %s\n" "$i" "$r"
+                i=$((i+1))
+            done
+        fi
+        echo "══════════════════════════════════════════════════"
+    } | tee "$VULN_REPORT"
 }
 
 ### ─── SUMMARY ───────────────────────────────────────────────────── ###
