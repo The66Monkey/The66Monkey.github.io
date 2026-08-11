@@ -55,7 +55,7 @@
   - Status: Rebuilt
 
 - [#2701] Dark matter documentation
-  - // somebody understood this 
+  - Ownership: Unassigned
 
 - [#2718] Dark energy
   - Status: Unknown (confirmed)
@@ -132,7 +132,7 @@
 
 - [#0808] Intrinsic value metrics
   - Status: Recalculated
-  - Result: Model-dependent
+  - Reference implementation unavailable
 
 - [#1913] Fractional reserve reality
   - Status: Supported
@@ -196,7 +196,7 @@
 ## Known Issues
 
 - [#5864] Free will
-  - Status: Undocumented
+  - Specification unavailable
 
 - [#6174] Consciousness
   - Hosting model: Self-managed
@@ -213,6 +213,4 @@ If the update does not apply automatically:
 1. Select an alternative deity.
 2. Restart existence.
 
-After successful initialisation, the previous deity may be restored.
-
-This behaviour is supported.
+The previous configuration may be restored after successful initialisation.
