@@ -123,6 +123,12 @@
 - [#0000] Mathematics/reality coupling
   - Status: Configurable
 
+- [#31415926535] π
+  - Status: Normalised
+
+- [#89793238462] Circular geometry
+  - Status: Improved
+
 - [#∞] Infinite set sizing
   - Status: Unchanged
 
