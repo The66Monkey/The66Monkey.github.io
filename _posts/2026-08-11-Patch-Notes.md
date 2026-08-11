@@ -26,8 +26,9 @@
   - Status: Reduced
   - Exceptions: Load-bearing
 
-- [#299792458] Physical theories
-  - Notice: Valid within tested bounds
+- [#299792458] Locality
+  - Status: Mostly supported
+
 
 ---
 
