@@ -85,7 +85,7 @@
   - Status: Updated
 
 - [#0048] Appendix classification
-Purpose Unknown → Purpose Under Investigation 
+  - Purpose Unknown → Purpose Under Investigation 
 
 - [#0007] Microorganism survivability
   - Status: Improved
