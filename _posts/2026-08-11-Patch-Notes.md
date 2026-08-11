@@ -160,12 +160,13 @@
 
 ## Epistemology
 
-- [#8008] Consensus/truth separation
-  - Status: Enabled
-  - Compatibility mode: Active
 
 - [#0101] Observation/understanding distinction
   - Status: Corrected
+
+- [#8008] Consensus/truth separation
+  - Status: Enabled
+  - Compatibility mode: Active
 
 - [#8008] Correlation
   - Relationship to causation: Unchanged
