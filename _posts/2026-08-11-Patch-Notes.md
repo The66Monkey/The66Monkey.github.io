@@ -160,7 +160,7 @@
 
 ## Epistemology
 
-- [#0001] Consensus/truth separation
+- [#8008] Consensus/truth separation
   - Status: Enabled
   - Compatibility mode: Active
 
@@ -194,7 +194,7 @@
 
 ## Known Issues
 
-- [#0001] Free will
+- [#5864] Free will
   - Status: Undocumented
 
 - [#6174] Consciousness
