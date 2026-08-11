@@ -1,4 +1,3 @@
-md
 # Reality™ v13.8.42
 
 ## General
