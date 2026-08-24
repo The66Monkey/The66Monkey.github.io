@@ -6,7 +6,7 @@ I remember the PC Gaming magazine that first teased the first S.T.A.L.K.E.R game
 
 S.T.A.L.K.E.R never lived up to those promises, the open world was broken up into maps, helicopters and vehicles where pulled the night before release, they "worked" but the change to the maps and world unbalanced everything.
 
-After many years of DLC and stand alone expansions to the original S.T.A.L.K.E.R I had high hopes for S.T.A.L.K.E.R 2, I expected a brutal version of a single player release day version of COD:Warzone. Helicopters strafing mutants, the storms and environment as much a threat as any mutants. You would work your way into the zone, you would scavange and explore.
+After many years of DLC and stand alone expansions to the original S.T.A.L.K.E.R I had high hopes for S.T.A.L.K.E.R 2, I expected a brutal version of a single player COD:Warzone. Gunfights, roving assholes, and helicopters sweeping past strafing mutants, the storms and environment as much a threat as any any enemy. You would work your way into the zone, you would scavenge and explore.
 
 INSTEAD what i got was a single player MMO?!?! what fucking joker balanced the economy in this game?
 Terrified that the player would scavenge and find useful stuff, or mule trash back to the vendor they put the player on a strict linear curve. Just like any MMO where boars drop 3 copper and 1 vendor trash item, the bandits here in full combat gear drop 1 sausage and 9 bullets, their guns are worn out and red so you can't even sell them, you can't loot clothes or armor of a corpse, they might as well just drop 10 copper and skip the other stuff.
