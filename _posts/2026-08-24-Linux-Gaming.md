@@ -19,7 +19,7 @@ There are many other problems, the mutants are bullet sponges and it feels like 
 
 I have seldom seen a game THIS at odds with itself, none of the systems compliment each other, it's not a brutal or difficult game, it's unrewarding and boring in the extreme.
 
-When i was in Chernobyl and we drove by the starting area of S.T.A.L.K.E.R 1 me and did the Soyjaks point meme, because it was iconic and recognizable. If you want the starting zone of S.T.A.L.K.E.R. 2 just shove your head in a bush.
+When i was in Chernobyl and we drove by the starting area of S.T.A.L.K.E.R 1 me and did some other blokes in bus did the Soyjaks point meme, because it was iconic and recognizable. If you want the starting zone of S.T.A.L.K.E.R. 2 just shove your head in a bush.
 
 Mods did wonders for the original S.T.A.L.K.E.R, I am not really interested in the hardcore survival stuff, but the ability to more freely explore and experience the world is great. I had much more fun with  S.T.A.L.K.E.R. G.A.M.M.A. on GoG than i did with the sequel.
 
