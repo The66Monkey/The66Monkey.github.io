@@ -13,12 +13,31 @@ warn() { echo -e "${YEL}[!]${RST} $*"; }
 err()  { echo -e "${RED}[-]${RST} $*" >&2; }
 ok()   { echo -e "${GRN}[+]${RST} $*"; }
 
+# Resolve the directory the script was launched from, regardless of cwd.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
+# Animated "still working" indicator shown in the launching terminal while the
+# daemonized scan runs in the background; watches PID, exits when it dies.
+spinner() {
+    local pid="$1"
+    local frames=("🐇      " " 🐇     " "  🐇    " "   🐇   " "    🐇  " "     🐇 " "      🐇" "     🐇 " "    🐇  " "   🐇   " "  🐇    " " 🐇     ")
+    local i=0
+    tput civis 2>/dev/null
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r${CYN}[running]${RST} %s  (PID %s — Ctrl+C stops watching, not the scan)" "${frames[i]}" "$pid"
+        i=$(( (i + 1) % ${#frames[@]} ))
+        sleep 0.15
+    done
+    tput cnorm 2>/dev/null
+    printf "\r%-70s\r" " "
+}
+
 
 ### ─── DEFAULTS ──────────────────────────────────────────────────── ###
 IFACE="wlan1"                      # USB adapter (RTL8812AU) — put into monitor mode
 MANAGED_IFACE="wlan0"              # internal adapter — stays managed for connectivity
 SSID_FILE="$HOME/Open-Nets.csv"    # pre-configured list of trusted open SSIDs to auto-join
-LOG_DIR="/var/log/wifiscan"  # world-readable system log dir; avoids logs buried under /root
+LOG_DIR="$SCRIPT_DIR"              # log to the same folder the script was launched from
 SHARED_DIR=""
 DWELL=10                           # seconds airodump-ng listens per channel
 BAND="both"
@@ -42,10 +61,13 @@ if [[ -z "${WIFISCAN_DAEMON:-}" ]]; then
     PIDFILE="$LOG_DIR/wifiscan.pid"
     export WIFISCAN_DAEMON=1
     nohup "$0" >> "$LOGFILE" 2>&1 &
+    disown
     echo $! > "$PIDFILE"
     ok  "WiFiScan started in background  (PID $(cat "$PIDFILE"))"
     info "Log : $LOGFILE"
     info "Stop: kill \$(cat $PIDFILE)"
+    trap 'tput cnorm 2>/dev/null; echo; info "Stopped watching (scan still running in background)."; exit 0' INT
+    spinner "$(cat "$PIDFILE")"
     exit 0
 fi
 
