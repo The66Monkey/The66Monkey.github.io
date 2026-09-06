@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # WiFiScan — Passive Wi-Fi reconnaissance.
-# RUN IT BY USING: sudo /path/to/WiFiScan
+# RUN IT BY USING: sudo /path/to/WiFiScan --active (optional)
 # WATCH IT RUN: tail -f ~/wifi-logs/wifiscan.out
 # STOP the logs after closing by using: sudo kill $(cat ~/wifi-logs/wifiscan.pid)
 
@@ -44,14 +44,78 @@ BAND="both"
 GPS_ENABLED=true
 QUIET=false
 AUTO_CONNECT_OPEN=true
-AGGRESSIVE_SCAN_INTERVAL=300      # seconds between full nmap port scans on connected network
+RUN_ACTIVE_RECON=false             # passive-only by default; use --active to enable active recon
+AGGRESSIVE_SCAN_INTERVAL=300       # seconds between full nmap port scans on connected network
 LOOP_SLEEP=10
-FULL_RESCAN_EVERY=10              # full channel sweep every N loops to catch new networks
-declare -A CH_HITS=()             # AP count per channel; drives adaptive skip
+FULL_RESCAN_EVERY=10               # full channel sweep every N loops to catch new networks
+VENDOR_DB_FILE="$SCRIPT_DIR/mac-vendors.json"
+PASSIVE_NOTICE_SHOWN=false
+declare -A CH_HITS=()              # AP count per channel; drives adaptive skip
+declare -A VENDOR_CACHE=()         # cache OUI/vendor lookups to avoid repeated disk scans
 LAST_AGGR_SCAN_TS=0
 LAST_AGGR_GW=""
 SSL_WARNING_COUNT=0   # incremented per gateway with SSL/TLS issues found
 SNMP_WARNING_COUNT=0  # incremented per gateway responding to public SNMP
+
+usage() {
+    cat <<EOF
+WiFiScan - passive-first Wi-Fi reconnaissance helper
+
+Usage:
+  sudo $0 [options]
+
+Options:
+  -i IFACE                 Monitor-mode interface (default: $IFACE)
+  -m IFACE                 Managed interface for connectivity checks (default: $MANAGED_IFACE)
+  -b BAND                  Scan band: 2, 5, both (default: $BAND)
+  -d SECONDS               Dwell time per channel (default: $DWELL)
+  -l SECONDS               Loop sleep between sweeps (default: $LOOP_SLEEP)
+  --active                 Enable active recon on connected network (nmap/arp/snmp/dns)
+  --passive                Disable active recon
+  --aggressive-interval S  Seconds between aggressive nmap scans (default: $AGGRESSIVE_SCAN_INTERVAL)
+  --vendor-db PATH         Path to MAC vendor JSON (default: $VENDOR_DB_FILE)
+  --no-autoconnect         Disable auto-connect to discovered open networks
+  --no-gps                 Disable GPS logging
+  -q, --quiet              Reduce terminal output
+  -h, --help               Show this help
+EOF
+}
+
+USER_ARGS=("$@")
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -i)
+            IFACE="$2"; shift 2 ;;
+        -m)
+            MANAGED_IFACE="$2"; shift 2 ;;
+        -b)
+            BAND="$2"; shift 2 ;;
+        -d)
+            DWELL="$2"; shift 2 ;;
+        -l)
+            LOOP_SLEEP="$2"; shift 2 ;;
+        --active)
+            RUN_ACTIVE_RECON=true; shift ;;
+        --passive)
+            RUN_ACTIVE_RECON=false; shift ;;
+        --aggressive-interval)
+            AGGRESSIVE_SCAN_INTERVAL="$2"; shift 2 ;;
+        --vendor-db)
+            VENDOR_DB_FILE="$2"; shift 2 ;;
+        --no-autoconnect)
+            AUTO_CONNECT_OPEN=false; shift ;;
+        --no-gps)
+            GPS_ENABLED=false; shift ;;
+        -q|--quiet)
+            QUIET=true; shift ;;
+        -h|--help)
+            usage; exit 0 ;;
+        *)
+            err "Unknown option: $1"
+            usage
+            exit 1 ;;
+    esac
+done
 
 ### ─── SELF-DAEMONIZE ────────────────────────────────────────────── ###
 # Re-exec with nohup+redirect when run directly; WIFISCAN_DAEMON guards against recursion.
@@ -60,7 +124,7 @@ if [[ -z "${WIFISCAN_DAEMON:-}" ]]; then
     LOGFILE="$LOG_DIR/wifiscan.out"
     PIDFILE="$LOG_DIR/wifiscan.pid"
     export WIFISCAN_DAEMON=1
-    nohup "$0" >> "$LOGFILE" 2>&1 &
+    nohup "$0" "${USER_ARGS[@]}" >> "$LOGFILE" 2>&1 &
     disown
     echo $! > "$PIDFILE"
     ok  "WiFiScan started in background  (PID $(cat "$PIDFILE"))"
@@ -105,6 +169,7 @@ declare -A OPT_PKGS=(
     [snmpwalk]="snmp"
     [dnsrecon]="dnsrecon"
     [wash]="reaver"
+    [jq]="jq"
 )
 
 _apt_updated=0
@@ -208,7 +273,7 @@ cleanup() {
     iw "$IFACE" set type managed 2>/dev/null
     ip link set "$IFACE" up 2>/dev/null
     ok "Interface $IFACE restored to managed mode."
-    rm -rf "$SCAN_CSV" "$SEEN_BSSIDS" "$OPEN_SSIDS_LIVE"
+    rm -rf "$SCAN_CSV" "$SEEN_BSSIDS" "$OPEN_SSIDS_LIVE" "$VENDOR_MAP_TSV"
     generate_summary
     generate_vuln_report
     info "All logs saved under: $LOG_DIR"
@@ -216,11 +281,53 @@ cleanup() {
 trap cleanup EXIT INT TERM HUP
 
 ### ─── HELPERS ───────────────────────────────────────────────────── ###
-# Resolve OUI prefix to vendor name using the local ieee-data database.
+VENDOR_MAP_TSV="${TMPDIR:-/tmp}/wifiscan_vendor_map_$$.csv"
+VENDOR_SOURCE="system-oui"
+
+# Build a fast local OUI map from mac-vendors.json when available.
+init_vendor_db() {
+    if [[ ! -s "$VENDOR_DB_FILE" ]]; then
+        warn "Vendor DB not found at $VENDOR_DB_FILE; using system OUI fallback."
+        return 0
+    fi
+
+    if ! command -v jq &>/dev/null; then
+        warn "jq not available; cannot parse $VENDOR_DB_FILE. Using system OUI fallback."
+        return 0
+    fi
+
+    if jq -r '.[] | select(.macPrefix and .vendorName) | "\(.macPrefix|ascii_upcase|gsub(":";"")),\(.vendorName)"' "$VENDOR_DB_FILE" > "$VENDOR_MAP_TSV" 2>/dev/null; then
+        sort -u -o "$VENDOR_MAP_TSV" "$VENDOR_MAP_TSV"
+        VENDOR_SOURCE="local-json"
+        ok "Loaded local MAC vendor DB: $VENDOR_DB_FILE"
+    else
+        rm -f "$VENDOR_MAP_TSV"
+        warn "Failed to parse $VENDOR_DB_FILE; using system OUI fallback."
+    fi
+}
+
+# Resolve OUI prefix to vendor name using local JSON map first, then system ieee-data.
 lookup_vendor() {
-    local prefix oui="/usr/share/ieee-data/oui.txt"
-    prefix=$(echo "$1" | cut -d: -f1-3 | tr '[:lower:]' '[:upper:]' | tr -d ':')
-    [[ -f "$oui" ]] && grep -i "^$prefix" "$oui" | head -1 | cut -f3- | xargs 2>/dev/null || echo "Unknown"
+    local mac="$1" prefix vendor oui="/usr/share/ieee-data/oui.txt"
+    prefix=$(echo "$mac" | cut -d: -f1-3 | tr '[:lower:]' '[:upper:]' | tr -d ':')
+    [[ -z "$prefix" ]] && echo "Unknown" && return
+
+    if [[ -n "${VENDOR_CACHE[$prefix]:-}" ]]; then
+        echo "${VENDOR_CACHE[$prefix]}"
+        return
+    fi
+
+    if [[ -f "$VENDOR_MAP_TSV" ]]; then
+        vendor=$(grep -m1 "^${prefix}," "$VENDOR_MAP_TSV" | cut -d, -f2-)
+    fi
+
+    if [[ -z "${vendor:-}" && -f "$oui" ]]; then
+        vendor=$(grep -i "^$prefix" "$oui" | head -1 | cut -f3- | xargs 2>/dev/null)
+    fi
+
+    [[ -z "${vendor:-}" ]] && vendor="Unknown"
+    VENDOR_CACHE[$prefix]="$vendor"
+    echo "$vendor"
 }
 
 # Map Privacy/Cipher fields to a human-readable risk tier.
@@ -843,6 +950,8 @@ generate_summary() {
         printf "  %-14s: %s\n" "Band"        "$BAND"
         printf "  %-14s: ${DWELL}s per channel\n" "Dwell time"
         printf "  %-14s: %s\n" "GPS"         "$GPS_ENABLED"
+        printf "  %-14s: %s\n" "Mode"        "$([ "$RUN_ACTIVE_RECON" = true ] && echo "active+passive" || echo "passive-only")"
+        printf "  %-14s: %s\n" "Vendor DB"   "$VENDOR_SOURCE"
         echo "───────────────────────────────────────────"
         printf "  %-14s: %s\n" "APs found"   "$total_aps"
         printf "  %-14s: %s\n" "Clients seen" "$total_clients"
@@ -853,6 +962,8 @@ generate_summary() {
         echo "═══════════════════════════════════════════"
     } | tee "$SUMMARY_LOG"
 }
+
+init_vendor_db
 
 ### ─── MONITOR MODE ──────────────────────────────────────────────── ###
 info "Setting $IFACE to monitor mode..."
@@ -923,6 +1034,12 @@ while true; do
         CH_HITS[$CH]=$(( ${CH_HITS[$CH]:-0} + _after - _before ))
     done
 
-    active_map_connected
+    if [ "$RUN_ACTIVE_RECON" = true ]; then
+        active_map_connected
+    elif [ "$PASSIVE_NOTICE_SHOWN" = false ]; then
+        info "Passive-only mode enabled. Use --active to include network probing."
+        PASSIVE_NOTICE_SHOWN=true
+    fi
+
     sleep "$LOOP_SLEEP"
 done
