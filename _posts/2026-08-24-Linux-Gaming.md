@@ -7,7 +7,7 @@ tags: [gaming, stalker2, fedora, heroic]
 hide_from_home: true
 ---
 
-# S.T.A.L.K.E.R. 2: Heart of Chornobyl
+#  Systematic failure
 
 Jesus fucking Christ what a fucking trash fire.
 
