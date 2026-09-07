@@ -1,13 +1,13 @@
 ---
 layout: post
-title: "High Effort Failure"
+title: "Linux and SWO"
 date: 2026-09-07
 categories: [linux-gaming]
 tags: [gaming, star-wars-outlaws, ubisoft]
 hide_from_home: true
 ---
 
-# Linux and SWO
+# High Effort Failure
 
 It’s no secret that AAA studios have spent years trying to keep their games out of the hands of Linux gamers. Between Denuvo, firmware‑level anti‑cheat trash, and spyware disguised as “player experience systems,” the message is loud and clear: DON’T PLAY OUR GAMES.
 
