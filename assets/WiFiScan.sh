@@ -37,7 +37,7 @@ spinner() {
 IFACE="wlan1"                      # USB adapter (RTL8812AU) — put into monitor mode
 MANAGED_IFACE="wlan0"              # internal adapter — stays managed for connectivity
 SSID_FILE="$HOME/Open-Nets.csv"    # pre-configured list of trusted open SSIDs to auto-join
-LOG_DIR="$SCRIPT_DIR"              # log to the same folder the script was launched from
+LOG_DIR="$SCRIPT_DIR"              # log to the same folder the script was launched from; override with -o for read-only mounts (e.g. AppImage)
 SHARED_DIR=""
 DWELL=10                           # seconds airodump-ng listens per channel
 BAND="both"
@@ -56,6 +56,7 @@ LAST_AGGR_SCAN_TS=0
 LAST_AGGR_GW=""
 SSL_WARNING_COUNT=0   # incremented per gateway with SSL/TLS issues found
 SNMP_WARNING_COUNT=0  # incremented per gateway responding to public SNMP
+DEAUTH_COUNT=0        # deauth/disassoc frames observed across all channels
 
 usage() {
     cat <<EOF
@@ -67,6 +68,7 @@ Usage:
 Options:
   -i IFACE                 Monitor-mode interface (default: $IFACE)
   -m IFACE                 Managed interface for connectivity checks (default: $MANAGED_IFACE)
+  -o DIR                   Directory to write logs into (default: script's own directory)
   -b BAND                  Scan band: 2, 5, both (default: $BAND)
   -d SECONDS               Dwell time per channel (default: $DWELL)
   -l SECONDS               Loop sleep between sweeps (default: $LOOP_SLEEP)
@@ -88,6 +90,8 @@ while [[ $# -gt 0 ]]; do
             IFACE="$2"; shift 2 ;;
         -m)
             MANAGED_IFACE="$2"; shift 2 ;;
+        -o)
+            LOG_DIR="$2"; shift 2 ;;
         -b)
             BAND="$2"; shift 2 ;;
         -d)
@@ -170,6 +174,7 @@ declare -A OPT_PKGS=(
     [dnsrecon]="dnsrecon"
     [wash]="reaver"
     [jq]="jq"
+    [tshark]="tshark"
 )
 
 _apt_updated=0
@@ -181,7 +186,7 @@ _install_pkg() {
         _apt_updated=1
     fi
     info "Installing $pkg (provides $bin)..."
-    if apt-get install -y -qq "$pkg" 2>/dev/null; then
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" 2>/dev/null; then
         ok "$pkg installed."
     else
         err "Failed to install $pkg — check apt sources."
@@ -217,12 +222,14 @@ chmod 755 "$LOG_DIR" "$SHARED_DIR"  # ensure normal users can read logs without 
 TS=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/scan-$TS"
 SCAN_CSV="$LOG_DIR/.scan_tmp_$$"   # temp dir for per-channel airodump output
+CAPTURE_DIR="$LOG_DIR/captures"    # persistent 802.11 pcaps, kept for post-scan Wireshark review
 
 # Per-run timestamped files sit under LOG_PREFIX; persistent cross-run files go in LOG_DIR.
 SECURITY_LOG="$LOG_PREFIX-security.log"
 WPS_LOG="$LOG_PREFIX-wps.log"
 HEATMAP_LOG="$LOG_PREFIX-heatmap.csv"
 FINGERPRINT_LOG="$LOG_PREFIX-fingerprints.log"
+DEAUTH_LOG="$LOG_PREFIX-deauth.log"
 SUMMARY_LOG="$LOG_PREFIX-summary.txt"
 VULN_REPORT="$LOG_PREFIX-vuln-report.txt"
 SEEN_BSSIDS="${TMPDIR:-/tmp}/wifiscan_seen_$$"
@@ -234,8 +241,9 @@ NETWORK_CSV="$LOG_DIR/network-log.csv"
 NETWORK_RAW="$LOG_DIR/network-raw.log"
 OPEN_NETS_FILE="$LOG_DIR/Open-Nets.csv"
 
-mkdir -p "$SCAN_CSV"
-touch "$WPS_LOG" "$FINGERPRINT_LOG" "$SEEN_BSSIDS" "$OPEN_SSIDS_LIVE"
+mkdir -p "$SCAN_CSV" "$CAPTURE_DIR"
+touch "$WPS_LOG" "$FINGERPRINT_LOG" "$SEEN_BSSIDS" "$OPEN_SSIDS_LIVE" "$DEAUTH_LOG"
+echo "Timestamp,Channel,SourceMAC,DestMAC" > "$DEAUTH_LOG"
 
 if [ ! -f "$SHARED_EVENTS_FILE" ]; then
     echo "timestamp,source,mode,ssid,bssid,channel,rssi,encryption,vendor,router_model,extra" > "$SHARED_EVENTS_FILE"
@@ -277,6 +285,7 @@ cleanup() {
     generate_summary
     generate_vuln_report
     info "All logs saved under: $LOG_DIR"
+    info "Packet captures (open in Wireshark): $CAPTURE_DIR"
 }
 trap cleanup EXIT INT TERM HUP
 
@@ -709,6 +718,29 @@ active_map_connected() {
     fi
 }
 
+# Flag deauth/disassoc frames in a channel's pcap (possible active attack) and archive the capture.
+analyze_captures() {
+    local cap_file="$1" ch="$2"
+    [[ ! -s "$cap_file" ]] && return
+
+    if command -v tshark &>/dev/null; then
+        local hits
+        hits="$(tshark -r "$cap_file" -Y 'wlan.fc.type_subtype==0x0c or wlan.fc.type_subtype==0x0a' \
+            -T fields -e wlan.sa -e wlan.da 2>/dev/null)"
+        if [[ -n "$hits" ]]; then
+            local count
+            count=$(echo "$hits" | grep -c .)
+            DEAUTH_COUNT=$((DEAUTH_COUNT + count))
+            echo "$hits" | while IFS=$'\t' read -r sa da; do
+                echo "$(date +%Y-%m-%dT%H:%M:%S),$ch,$sa,$da" >> "$DEAUTH_LOG"
+            done
+            ! $QUIET && warn "Deauth/disassoc frames detected on CH $ch: $count"
+        fi
+    fi
+
+    mv -f "$cap_file" "$CAPTURE_DIR/ch${ch}-loop${SCAN_COUNT}.cap" 2>/dev/null
+}
+
 ### ─── CSV PROCESSOR ─────────────────────────────────────────────── ###
 process_csv() {
     local csv_file="$1"
@@ -868,6 +900,10 @@ generate_vuln_report() {
         findings+=("HIGH     | Gateway responds to SNMP 'public' community — exposes device config info");
         remediation+=("Disable SNMP or change the community string from 'public' in router management."); }
 
+    [[ $DEAUTH_COUNT -gt 0 ]] && { score=$((score + (DEAUTH_COUNT>10 ? 30 : 15)));
+        findings+=("HIGH     | $DEAUTH_COUNT deauth/disassoc frame(s) captured — possible active deauth/jamming attack (see deauth.log)");
+        remediation+=("Review deauth.log source MACs; enable 802.11w (Management Frame Protection) on APs if supported."); }
+
     # ── sensitive open ports on subnet hosts ──────────────────────
     local telnet_count ftp_count rdp_count smb_count
     telnet_count=$(grep -c 'NmapOpen:.*23/' "$NETWORK_CSV" 2>/dev/null || echo 0)
@@ -959,6 +995,13 @@ generate_summary() {
         printf "  %-14s: %s\n" "Weak nets"   "$weak_nets"
         printf "  %-14s: %s\n" "Strong nets" "$strong_nets"
         printf "  %-14s: %s\n" "Hidden SSIDs" "$hidden_nets"
+        echo "───────────────────────────────────────────"
+        echo "  Channel congestion (AP hits):"
+        for ch in "${!CH_HITS[@]}"; do
+            printf "%s %s\n" "${CH_HITS[$ch]}" "$ch"
+        done | sort -rn | while read -r hits ch; do
+            [[ $hits -gt 0 ]] && printf "    CH %-4s: %s AP(s)\n" "$ch" "$hits"
+        done
         echo "═══════════════════════════════════════════"
     } | tee "$SUMMARY_LOG"
 }
@@ -1020,7 +1063,7 @@ while true; do
         timeout "$DWELL" airodump-ng \
             --channel "$CH" \
             --write "$SCAN_CSV/ch-$CH" \
-            --output-format csv \
+            --output-format pcap,csv \
             --write-interval 5 \
             --wps \
             "$IFACE" &>/dev/null &
@@ -1032,6 +1075,7 @@ while true; do
         process_csv "$SCAN_CSV/ch-${CH}-01.csv"
         _after=$(wc -l < "$SEEN_BSSIDS")
         CH_HITS[$CH]=$(( ${CH_HITS[$CH]:-0} + _after - _before ))
+        analyze_captures "$SCAN_CSV/ch-${CH}-01.cap" "$CH"
     done
 
     if [ "$RUN_ACTIVE_RECON" = true ]; then

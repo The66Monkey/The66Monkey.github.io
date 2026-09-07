@@ -1,3 +1,11 @@
+---
+layout: post
+title: "S.T.A.L.K.E.R. 2: Heart of Chornobyl"
+date: 2026-08-24
+categories: [linux-gaming]
+tags: [gaming, stalker2, fedora, heroic]
+---
+
 # S.T.A.L.K.E.R. 2: Heart of Chornobyl
 
 Jesus fucking Christ what a fucking trash fire.
