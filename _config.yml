@@ -32,8 +32,9 @@ plugins:
 
 # Explicit header nav tabs (minima). Order matters.
 header_pages:
-  - about.markdown
+  - index.markdown
   - linux-gaming.markdown
+  - about.markdown
 
 # Exclude from processing.
 # The following items will not be processed, by default.
