@@ -7,7 +7,7 @@ tags: [gaming, star-wars-outlaws, ubisoft]
 hide_from_home: true
 ---
 
-# Gaming and the games industry
+# Linux and SWO
 
 It’s no secret that AAA studios have spent years trying to keep their games out of the hands of Linux gamers. Between Denuvo, firmware‑level anti‑cheat trash, and spyware disguised as “player experience systems,” the message is loud and clear: DON’T PLAY OUR GAMES.
 
