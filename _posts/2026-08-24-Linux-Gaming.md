@@ -4,6 +4,7 @@ title: "S.T.A.L.K.E.R. 2: Heart of Chornobyl"
 date: 2026-08-24
 categories: [linux-gaming]
 tags: [gaming, stalker2, fedora, heroic]
+hide_from_home: true
 ---
 
 # S.T.A.L.K.E.R. 2: Heart of Chornobyl

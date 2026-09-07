@@ -4,6 +4,7 @@ title: "High Effort Failure"
 date: 2026-09-07
 categories: [linux-gaming]
 tags: [gaming, star-wars-outlaws, ubisoft]
+hide_from_home: true
 ---
 
 # Gaming and the games industry
