@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# WiFiScan — On-device Wi-Fi + subnet recon for a rooted Android phone in Termux.
+# ScanPhone — On-device Wi-Fi + subnet recon for a rooted Android phone in Termux.
 #
 # Target: rooted Pixel 9a / LineageOS (Android 16), but works on any rooted
 # Termux install. There is NO monitor-mode capture — verified on-device that
@@ -16,15 +16,15 @@
 #   (dnsrecon isn't packaged for Termux; the script tries 'pip install
 #   dnsrecon' on first run and just skips that check if it fails.)
 #
-# RUN:   bash WiFiScan.sh [-q] [-p]
+# RUN:   bash ScanPhone.sh [-q] [-p]
 #   -q   quiet    — suppress the per-AP scan lines, keep loop/summary output
 #   -p   passive  — Wi-Fi scanning only; skip all active subnet/gateway recon
 #                    (arp-scan/nbtscan/snmpwalk/dnsrecon/nmap). Use this if you
 #                    only have authorization to observe, not to probe hosts.
 #   -h   help     — print this usage and exit
 #
-# WATCH IT RUN:  tail -f wifiscan.out   (in the folder you launched from)
-# STOP THE SCAN: kill $(cat wifiscan.pid)
+# WATCH IT RUN:  tail -f scanphone.out   (in the folder you launched from)
+# STOP THE SCAN: kill $(cat scanphone.pid)
 # LOGS:          written to the folder you launched the script from
 
 ### ─── COLORS ────────────────────────────────────────────────────── ###
@@ -140,8 +140,8 @@ if ! command -v termux-wifi-scaninfo &>/dev/null; then
     err "termux-wifi-scaninfo missing. Install the Termux:API app (F-Droid/GitHub build) and grant it Location access."
     exit 1
 fi
-if ! termux-wifi-connectioninfo &>/dev/null; then
-    warn "termux-wifi-connectioninfo failed — is the Termux:API app installed and running?"
+if ! timeout 10 termux-wifi-connectioninfo &>/dev/null; then
+    warn "termux-wifi-connectioninfo failed/timed out — is the Termux:API app installed, running, and granted Location access?"
 fi
 
 $ROOT && ok "Root available — using it to lift the Wi-Fi scan throttle and for deeper nmap scans." \
@@ -168,15 +168,15 @@ else
 fi
 
 ### ─── SELF-DAEMONIZE ────────────────────────────────────────────── ###
-if [[ -z "${WIFISCAN_DAEMON:-}" ]]; then
+if [[ -z "${SCANPHONE_DAEMON:-}" ]]; then
     mkdir -p "$LOG_DIR"
-    LOGFILE="$LOG_DIR/wifiscan.out"
-    PIDFILE="$LOG_DIR/wifiscan.pid"
-    export WIFISCAN_DAEMON=1
+    LOGFILE="$LOG_DIR/scanphone.out"
+    PIDFILE="$LOG_DIR/scanphone.pid"
+    export SCANPHONE_DAEMON=1
     nohup "$0" "$@" >> "$LOGFILE" 2>&1 &
     disown
     echo $! > "$PIDFILE"
-    ok  "WiFiScan started in background  (PID $(cat "$PIDFILE"))"
+    ok  "ScanPhone started in background  (PID $(cat "$PIDFILE"))"
     info "Log : $LOGFILE"
     info "Stop: kill \$(cat $PIDFILE)"
     trap 'tput cnorm 2>/dev/null; echo; info "Stopped watching (scan still running in background)."; exit 0' INT
@@ -194,7 +194,7 @@ SUMMARY_LOG="$LOG_PREFIX-summary.txt"
 VULN_REPORT="$LOG_PREFIX-vuln-report.txt"
 NETWORK_CSV="$LOG_DIR/network-log.csv"
 NETWORK_RAW="$LOG_DIR/network-raw.log"
-SEEN_BSSIDS="$LOG_DIR/.wifiscan_seen_$$"
+SEEN_BSSIDS="$LOG_DIR/.scanphone_seen_$$"
 touch "$SEEN_BSSIDS"
 
 echo "timestamp,ssid,bssid,channel,freq,rssi,security,wps,hidden,vendor,ch_rating" > "$SECURITY_LOG"
@@ -208,7 +208,7 @@ cleanup() {
     _CLEANUP_DONE=1
     warn "Shutting down..."
     command -v termux-wake-unlock &>/dev/null && termux-wake-unlock
-    $NOTIFY && termux-notification-remove wifiscan 2>/dev/null
+    $NOTIFY && termux-notification-remove scanphone 2>/dev/null
     rm -f "$SEEN_BSSIDS"
     generate_summary
     generate_vuln_report
@@ -492,7 +492,7 @@ generate_summary() {
 
     {
         echo "═══════════════════════════════════════════"
-        echo "  WiFiScan Summary  —  $TS"
+        echo "  ScanPhone Summary  —  $TS"
         echo "═══════════════════════════════════════════"
         printf "  %-14s: %s\n" "Root"          "$ROOT"
         printf "  %-14s: %s\n" "Loops run"      "$SCAN_COUNT"
@@ -613,7 +613,7 @@ generate_vuln_report() {
 }
 
 ### ─── SCAN LOOP ─────────────────────────────────────────────────── ###
-info "Starting WiFiScan — dwell=${DWELL}s, GPS=$GPS_ENABLED, root=$ROOT, nmap=$HAVE_NMAP, arp-scan=$HAVE_ARPSCAN, nbtscan=$HAVE_NBTSCAN, snmpwalk=$HAVE_SNMPWALK, dnsrecon=$HAVE_DNSRECON"
+info "Starting ScanPhone — dwell=${DWELL}s, GPS=$GPS_ENABLED, root=$ROOT, nmap=$HAVE_NMAP, arp-scan=$HAVE_ARPSCAN, nbtscan=$HAVE_NBTSCAN, snmpwalk=$HAVE_SNMPWALK, dnsrecon=$HAVE_DNSRECON"
 echo ""
 
 while true; do
@@ -626,7 +626,7 @@ while true; do
     $AGGRESSIVE_SCAN && active_recon
 
     if $NOTIFY; then
-        termux-notification --id wifiscan --title "WiFiScan running" \
+        termux-notification --id scanphone --title "ScanPhone running" \
             --content "Loop #${SCAN_COUNT} — $(wc -l < "$SEEN_BSSIDS") APs seen" \
             --ongoing --priority low 2>/dev/null
     fi
