@@ -1,23 +1,51 @@
-# AI-Assisted codeing
+# AI‑Assisted Coding: Why “Vibes” Don’t Ship Software
 
-Ain't no fucking "vibe" if you are a proffesional.
+There ain’t no fucking vibe in professional software development.
+You either build something that works, or you don’t.
 
-Look, almost everyone in the business got their start modifying code / copying features.
-It is like learning any other profession, you take things apart, mod them, put them together and figure out how they work.
+Every developer starts the same way: copying code, ripping apart examples, stitching features together, and learning by breaking things. It’s the same as any craft — you take the machine apart, you put it back together, and you figure out why it rattles.
 
-Stack Overflow was a meme for a few years, because there wasn't a coder out there who in desperation haden't stumbled in there, searching for answers.
+Stack Overflow became a meme because every coder has, at some point, crawled in there at 3 AM, desperate for a fix that wasn’t buried under ten layers of contradictory answers.
 
+## GitHub Copilot: The Agent That Launched a Thousand Script Kiddies
 
+I’ve already written about what the world looked like when I started, but I didn’t get to rant about the real problem with AI-assisted coding: you still have to do a ridiculous amount of tweaking, testing, and restating your goals.
 
-# Github Copilot, the agent that launced a thousand script kiddies.
+LLMs get you to the testing phase faster, sure. It feels like progress. But when you’re working on anything modern — bleeding-edge frameworks, new APIs, fresh documentation — you end up iterating more than ever.
 
-I have already posted about what the world looked like back when I started, but one thing i didn't really get to rant about was just how much tweaking and testing AI-Code requires.
-Now IT FEELS like you are making more progress when you get to the testing phase quicker, but you sure end up itterating a lot, especially when you are building something on the cutting edge.
+For me, getting the latest suite of pentest tools working has been something like:
 
-For me getting the latest suite of Pen-Test tools working has been about 40% llm and 50% good old fashion documentation reading. 
+    40% LLM prompting
 
-If you want a website from 6 years ago, a script for an old stable system, or mockups then an LLM can work as a cheat sheet, throwing up a bunch of working (but not necessarily optimal) code that get's you working in the general direction you want to go.
+    50% reading documentation
 
-A couple of problems;
- If you want to actually ship something, you usually have to rebuild the whole thing because it made some assumption at the start that did not support future development
- You have to 
+    10% swearing at dependency conflicts
+
+And here’s the uncomfortable truth:
+If you want a website from six years ago, a script for a stable legacy system, or a mockup that looks vaguely correct, an LLM is a cheat sheet. It throws out working-but-not-optimal code that gets you moving in the general direction.
+
+But if you want to ship something?
+
+You almost always have to rebuild the entire thing from scratch because the model made some assumption early on that quietly poisoned the architecture.
+
+# The Real Problems
+
+    Legacy bias — Most training data is pre‑2023. Even with RAG, the ratio of outdated solutions to correct modern ones is absurd.
+
+    Goal drift — If you don’t restate your intent constantly, the model wanders off into whatever pattern its training data thinks is “normal.”
+
+    Hidden assumptions — The model picks a framework, a pattern, or a dependency without telling you. You only discover it when everything breaks later.
+
+    Iteration inflation — You get to the testing phase faster, but you test more because the initial scaffolding is shaky.
+
+# Why Pros Still Need Documentation
+
+Documentation is still the only source of truth.
+Not vibes.
+Not autocomplete.
+Not “here’s a snippet from a 2018 blog post.”
+
+If you’re building something modern — new kernel features, new Android ROM quirks, new cloud APIs, new pentest tooling — the LLM is only as good as the documentation you feed it and the constraints you enforce.
+
+AI is a power tool.
+But it’s not a replacement for knowing how the machine works.
