@@ -1,51 +1,39 @@
-# AI‑Assisted Coding: Why “Vibes” Don’t Ship Software
+AI‑Assisted Coding: Why “Vibes” Don’t Ship Software
 
 There ain’t no fucking vibe in professional software development.
-You either build something that works, or you don’t.
+You build something that works, or you don’t.
 
-Every developer starts the same way: copying code, ripping apart examples, stitching features together, and learning by breaking things. It’s the same as any craft — you take the machine apart, you put it back together, and you figure out why it rattles.
+Every developer starts the same way: copying code, tearing apart examples, stitching features together, and learning by breaking things. It’s the same as any craft — you take the machine apart, you put it back together, and you figure out why it rattles.
 
-Stack Overflow became a meme because every coder has, at some point, crawled in there at 3 AM, desperate for a fix that wasn’t buried under ten layers of contradictory answers.
+Stack Overflow became a rite of passage because every coder has, at some point, crawled in there at 3 AM, hunting for a fix buried under ten layers of contradictory answers.
+GitHub Copilot: The Agent That Launched a Thousand Script Kiddies
 
-## GitHub Copilot: The Agent That Launched a Thousand Script Kiddies
+There’s a strange parallel between the rise of Copilot and the old wave of script kiddies.
+Both groups gained access to powerful tools long before they gained the understanding required to wield them.
 
-I’ve already written about what the world looked like when I started, but I didn’t get to rant about the real problem with AI-assisted coding: you still have to do a ridiculous amount of tweaking, testing, and restating your goals.
+A script kiddie fires off payloads because the interface makes it feel like hacking.
+An AI-assisted coder generates functions because the interface makes it feel like programming.
+In both cases, the sense of capability comes from the tool’s output rather than the user’s internal model of how the system behaves.
 
-LLMs get you to the testing phase faster, sure. It feels like progress. But when you’re working on anything modern — bleeding-edge frameworks, new APIs, fresh documentation — you end up iterating more than ever.
+This is why AI-assisted coding creates so much rework.
+The model pushes you forward quickly, but it pushes you forward on rails it chose long before you noticed. When you’re building anything modern — new kernels, fresh APIs, evolving frameworks — those rails rarely match the direction your architecture needs to go. You get speed, but you also inherit every assumption baked into the generated scaffolding.
 
-For me, getting the latest suite of pentest tools working has been something like:
+For me, getting the latest suite of pentest tools working has been a mix of LLM prompting, documentation reading, and the usual dependency chaos. The LLM helps me explore ideas faster, but the real progress comes from understanding why a particular approach fits the environment I’m targeting. That understanding doesn’t come from the model; it comes from reading, testing, and adjusting until the system behaves the way I expect.
 
-    40% LLM prompting
+If you’re building something old and stable, an LLM can act like a cheat sheet. It throws out workable code that gets you moving. But when you’re shipping something that needs to evolve, the early assumptions matter. The model often picks a framework, a pattern, or a dependency because its training data leans that way, and those choices shape everything that comes after. You end up rebuilding because the foundation wasn’t designed for the direction you needed to grow.
+The Real Problems
 
-    50% reading documentation
+Legacy bias shows up because most training data is pre‑2023, so the model leans toward patterns that were common years ago.
+Goal drift happens because the model follows statistical momentum instead of architectural intent.
+Hidden assumptions creep in when the model selects tools or structures without surfacing the reasoning.
+Iteration inflation emerges because the generated scaffolding accelerates testing but increases the number of corrections required to reach a stable design.
 
-    10% swearing at dependency conflicts
+Each of these issues comes from the same root: the model produces code based on patterns, while professionals build systems based on understanding.
+Why Pros Still Need Documentation
 
-And here’s the uncomfortable truth:
-If you want a website from six years ago, a script for a stable legacy system, or a mockup that looks vaguely correct, an LLM is a cheat sheet. It throws out working-but-not-optimal code that gets you moving in the general direction.
+Documentation remains the only reliable source of truth.
+Modern systems evolve too quickly for statistical patterns to keep up, and the only way to align your architecture with reality is to read the material written by the people who actually maintain the thing you’re building on.
 
-But if you want to ship something?
+When you’re working with new kernel features, fresh Android ROM quirks, cloud APIs that change every quarter, or pentest tooling that depends on exact versions, the LLM becomes useful only when you anchor it with documentation. The constraints you feed it determine whether it behaves like a helper or a hallucination engine.
 
-You almost always have to rebuild the entire thing from scratch because the model made some assumption early on that quietly poisoned the architecture.
-
-# The Real Problems
-
-    Legacy bias — Most training data is pre‑2023. Even with RAG, the ratio of outdated solutions to correct modern ones is absurd.
-
-    Goal drift — If you don’t restate your intent constantly, the model wanders off into whatever pattern its training data thinks is “normal.”
-
-    Hidden assumptions — The model picks a framework, a pattern, or a dependency without telling you. You only discover it when everything breaks later.
-
-    Iteration inflation — You get to the testing phase faster, but you test more because the initial scaffolding is shaky.
-
-# Why Pros Still Need Documentation
-
-Documentation is still the only source of truth.
-Not vibes.
-Not autocomplete.
-Not “here’s a snippet from a 2018 blog post.”
-
-If you’re building something modern — new kernel features, new Android ROM quirks, new cloud APIs, new pentest tooling — the LLM is only as good as the documentation you feed it and the constraints you enforce.
-
-AI is a tool, and one that is getting more diluted and rickety each year.
-The next generation of code assistant's will need to be much better at reading and using documentation if they are to remain a usable tool, and developers are going to need to continue producing high quality documentation.
+AI is becoming more diluted each year because the volume of legacy data keeps growing faster than the volume of modern examples. The next generation of coding assistants will need to treat documentation as a first-class input rather than a suggestion. And developers will need to keep producing high-quality documentation so the tools have something worth learning from.
