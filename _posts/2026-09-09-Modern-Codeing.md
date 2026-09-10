@@ -1,4 +1,4 @@
-AI‑Assisted Coding: Why “Vibes” Don’t Ship Software
+# AI‑Assisted Coding: Why “Vibes” Don’t Ship Software
 
 There ain’t no fucking vibe in professional software development.
 You build something that works, or you don’t.
@@ -21,15 +21,15 @@ The model pushes you forward quickly, but it pushes you forward on rails it chos
 For me, getting the latest suite of pentest tools working has been a mix of LLM prompting, documentation reading, and the usual dependency chaos. The LLM helps me explore ideas faster, but the real progress comes from understanding why a particular approach fits the environment I’m targeting. That understanding doesn’t come from the model; it comes from reading, testing, and adjusting until the system behaves the way I expect.
 
 If you’re building something old and stable, an LLM can act like a cheat sheet. It throws out workable code that gets you moving. But when you’re shipping something that needs to evolve, the early assumptions matter. The model often picks a framework, a pattern, or a dependency because its training data leans that way, and those choices shape everything that comes after. You end up rebuilding because the foundation wasn’t designed for the direction you needed to grow.
-The Real Problems
 
+
+# Why Professionals Still Need Documentation
+
+Model produces code based on patterns, and the problem of that is:
 Legacy bias shows up because most training data is pre‑2023, so the model leans toward patterns that were common years ago.
 Goal drift happens because the model follows statistical momentum instead of architectural intent.
 Hidden assumptions creep in when the model selects tools or structures without surfacing the reasoning.
 Iteration inflation emerges because the generated scaffolding accelerates testing but increases the number of corrections required to reach a stable design.
-
-Each of these issues comes from the same root: the model produces code based on patterns, while professionals build systems based on understanding.
-Why Pros Still Need Documentation
 
 Documentation remains the only reliable source of truth.
 Modern systems evolve too quickly for statistical patterns to keep up, and the only way to align your architecture with reality is to read the material written by the people who actually maintain the thing you’re building on.
