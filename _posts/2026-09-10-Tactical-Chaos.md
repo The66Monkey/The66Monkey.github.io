@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Tactical shooting"
-date: 2026-09-10
+date: 2026-09-09
 categories: [linux-gaming]
 tags: [gaming, tactical shooters]
 hide_from_home: true

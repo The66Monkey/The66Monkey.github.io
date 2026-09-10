@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Under the sea"
-date: 2026-09-11
+date: 2026-09-10
 categories: [linux-gaming]
 tags: [gaming, bioshock 2, mechanis, shooter]
 hide_from_home: true
