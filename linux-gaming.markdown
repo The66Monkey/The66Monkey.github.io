@@ -4,7 +4,7 @@ title: Linux Gaming
 permalink: /linux-gaming/
 ---
 
-A running list of posts about gaming on Linux. How we get out working, and of it's worth it.
+A running list of posts about gaming on Linux. How we get out working, and if it's worth it.
 
 <ul class="post-list">
   {%- for post in site.categories['linux-gaming'] -%}
