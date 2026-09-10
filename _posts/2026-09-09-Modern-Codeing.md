@@ -47,5 +47,5 @@ Not “here’s a snippet from a 2018 blog post.”
 
 If you’re building something modern — new kernel features, new Android ROM quirks, new cloud APIs, new pentest tooling — the LLM is only as good as the documentation you feed it and the constraints you enforce.
 
-AI is a power tool.
-But it’s not a replacement for knowing how the machine works.
+AI is a tool, and one that is getting more diluted and rickety each year.
+The next generation of code assistant's will need to be much better at reading and using documentation if they are to remain a usable tool, and developers are going to need to continue producing high quality documentation.
