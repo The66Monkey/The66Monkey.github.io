@@ -1,0 +1,23 @@
+# AI-Assisted codeing
+
+Ain't no fucking "vibe" if you are a proffesional.
+
+Look, almost everyone in the business got their start modifying code / copying features.
+It is like learning any other profession, you take things apart, mod them, put them together and figure out how they work.
+
+Stack Overflow was a meme for a few years, because there wasn't a coder out there who in desperation haden't stumbled in there, searching for answers.
+
+
+
+# Github Copilot, the agent that launced a thousand script kiddies.
+
+I have already posted about what the world looked like back when I started, but one thing i didn't really get to rant about was just how much tweaking and testing AI-Code requires.
+Now IT FEELS like you are making more progress when you get to the testing phase quicker, but you sure end up itterating a lot, especially when you are building something on the cutting edge.
+
+For me getting the latest suite of Pen-Test tools working has been about 40% llm and 50% good old fashion documentation reading. 
+
+If you want a website from 6 years ago, a script for an old stable system, or mockups then an LLM can work as a cheat sheet, throwing up a bunch of working (but not necessarily optimal) code that get's you working in the general direction you want to go.
+
+A couple of problems;
+ If you want to actually ship something, you usually have to rebuild the whole thing because it made some assumption at the start that did not support future development
+ You have to 
