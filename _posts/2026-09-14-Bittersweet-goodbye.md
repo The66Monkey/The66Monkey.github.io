@@ -36,7 +36,7 @@ I didn't used to care about noise, my old computer sounding like a jet engine, b
 
 Maybe the market will recover, but if it happens, I suspect it will be a slow, gradual return to sanity. It won't be the GPU makers coming back to the consumers, hat-in-hand, asking forgiveness. They will slowly increase supply, milking the pent-up demand for every €uro they can.
 
-# AI has peaked
+# In other news: AI has peaked
 
 So all the AI companies are calling for governments to regulate the AI business. This is not some altruistic move for the good of humanity. LLMs are not getting much better, no matter how much compute or AI-generated content we throw at them, and to keep the illusion alive that there is still space to grow requires something to blame.
 
