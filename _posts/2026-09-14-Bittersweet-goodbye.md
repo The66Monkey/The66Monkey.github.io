@@ -50,4 +50,4 @@ Normal people are already paying with their savings, environments, and pensions 
     Nowhere to run, it's all undone
     Everything burns, everything burns
     I'll watch you fall down, I'll drag you facedown
-    Everything burns, everything...
+    Everything burns, everything burns
