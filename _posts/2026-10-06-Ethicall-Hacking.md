@@ -1,12 +1,3 @@
----
-layout: post
-title: "This is War"
-date: 2026-10-06
-categories: [linux-gaming]
-tags: [hacking, security]
-hide_from_home: true
----
-
 # This is War
 
 "Never confuse ethics and legallity, it puts you in a subserviant relationship to society."
