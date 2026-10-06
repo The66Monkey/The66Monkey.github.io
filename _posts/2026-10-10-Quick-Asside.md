@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Writing Books"
-date: 2026-09-10
+date: 2026-10-10
 categories: [linux-gaming]
 tags: [Author, writing, publishing]
 hide_from_home: true
