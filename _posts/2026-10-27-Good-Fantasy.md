@@ -2,7 +2,7 @@
 layout: post
 title: "Good Fantasy"
 date: 2026-10-27
-categories: [gaming]
+categories: [linux-gaming]
 tags: [WoW, warcraft-3, durotar, rpg]
 hide_from_home: true
 ---
