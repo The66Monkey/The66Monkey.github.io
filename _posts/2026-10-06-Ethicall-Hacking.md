@@ -6,7 +6,7 @@ The most recent news has shown that destructive hacking is consequence free when
 
 From this we can only conclude that you can be a black hat as long as an AI with tool access does it.
 
-I have been chipping away at a [scan and observation](https://git.scandinavianhacking.dedyn.io/The66Monkey/Pentest-suite) kit for some time, it is nowhere near as good as any built in tool for Kali, but it is for me to learn with and slowly build out my knowledge. The tools now live in that private repository, separately from this website.
+I have been chipping away at a [scan and observation](https://git.scandinavianhacking.dedyn.io/The66Monkey/CandleSec) kit for some time, it is nowhere near as good as any built in tool for Kali, but it is for me to learn with and slowly build out my knowledge. The tools now live in that private repository, separately from this website.
 
 The image of the hacker, with in a hoodie and sunglasses, tapping away at a keyboard to hack into systems is cool, it's visual, but damn is it wrong.
 

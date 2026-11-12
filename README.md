@@ -2,7 +2,7 @@
 Jekyll blog of Debian adventures
 
 Pentesting tools are maintained separately in the private
-[Pentest Suite](https://git.scandinavianhacking.dedyn.io/The66Monkey/Pentest-suite)
+[CandleSec](https://git.scandinavianhacking.dedyn.io/The66Monkey/CandleSec)
 repository. They are not included in this website repository.
 
 ---
